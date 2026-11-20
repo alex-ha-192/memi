@@ -48,10 +48,6 @@ zeroize = "1"
 [build-dependencies]
 winresource = "0.1"
 
-[patch.crates-io]
-# Older xattr (pulled in by GPUI) doesn't build against newer libc on Linux; one-line fix.
-xattr = { path = "vendor/xattr-0.2.3" }
-
 [profile.release]
 opt-level = 3
 lto = "thin"

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Your Memi
+GenericName=Personal notes about people
+Comment=Remember the little things about the people in your life
+Exec=your-memi
+Icon=app.yourmemi.YourMemi
+Terminal=false
+Categories=Office;Utility;
+Keywords=people;gifts;birthdays;ideas;notes;friends;family;
+StartupWMClass=app.yourmemi.YourMemi

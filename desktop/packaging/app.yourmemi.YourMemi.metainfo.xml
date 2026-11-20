@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>app.yourmemi.YourMemi</id>
+  <name>Your Memi</name>
+  <summary>Remember the little things about the people you love</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <developer id="app.yourmemi">
+    <name>Your Memi</name>
+  </developer>
+  <description>
+    <p>
+      Your Memi keeps the specific, useful things you learn about the people in your life:
+      the gift idea someone mentioned in passing, the plan you made over coffee, the allergy
+      you don't want to forget.
+    </p>
+    <ul>
+      <li>Every person gets their own categories, like Gift ideas, Plans and Notes</li>
+      <li>Categories can build up to a birthday, an anniversary or a trip, and show what's due as the day gets close</li>
+      <li>Still fresh brings back what you added recently and what's coming up</li>
+      <li>Mark ideas as a hit or a miss once they're done</li>
+      <li>Five colour schemes, each in light and dark</li>
+    </ul>
+    <p>
+      Everything stays on your computer. If you want your phone and computer to stay in step,
+      sync keeps an end-to-end encrypted copy in your own Google Drive, which only your devices
+      can read. There are no accounts, no ads and no tracking.
+    </p>
+  </description>
+  <launchable type="desktop-id">app.yourmemi.YourMemi.desktop</launchable>
+  <url type="homepage">https://yourmemi.app</url>
+  <url type="bugtracker">https://github.com/alex-ha-192/memi/issues</url>
+  <url type="vcs-browser">https://github.com/alex-ha-192/memi</url>
+  <url type="privacy-policy">https://yourmemi.app/privacy</url>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Your people, what's coming up, and one person's categories</caption>
+      <image>https://yourmemi.app/shots/desktop-light.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Adding to a category</caption>
+      <image>https://yourmemi.app/shots/desktop-category.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Dark mode and the theme panel</caption>
+      <image>https://yourmemi.app/shots/desktop-dark.png</image>
+    </screenshot>
+  </screenshots>
+  <branding>
+    <color type="primary" scheme_preference="light">#E3DEFF</color>
+    <color type="primary" scheme_preference="dark">#2E2A55</color>
+  </branding>
+  <content_rating type="oars-1.1"/>
+  <requires>
+    <display_length compare="ge">880</display_length>
+  </requires>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+  <categories>
+    <category>Office</category>
+    <category>Utility</category>
+  </categories>
+  <keywords>
+    <keyword>people</keyword>
+    <keyword>gifts</keyword>
+    <keyword>birthdays</keyword>
+    <keyword>notes</keyword>
+  </keywords>
+  <releases>
+    <release version="0.5.0" date="2026-11-20">
+      <description>
+        <p>The first release for Linux and Windows, rebuilt from the ground up.</p>
+      </description>
+    </release>
+  </releases>
+</component>

@@ -9249,7 +9249,3 @@ dependencies = [
  "syn 3.0.10",
  "winnow 1.0.5",
 ]
-
-[[patch.unused]]
-name = "xattr"
-version = "0.2.3"
