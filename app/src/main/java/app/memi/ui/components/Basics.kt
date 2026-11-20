@@ -48,6 +48,16 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
+import androidx.compose.foundation.gestures.drag
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -101,10 +111,17 @@ fun Modifier.pressable(
     onClick: (() -> Unit)?,
     onMenu: (() -> Unit)?,
     interaction: MutableInteractionSource,
+    /** Set to make the item draggable: hold, then move. Holding and letting go opens [onMenu]. */
+    reorder: ReorderHandle? = null,
 ): Modifier {
     val click by rememberUpdatedState(onClick)
     val menu by rememberUpdatedState(onMenu)
+    val handle by rememberUpdatedState(reorder)
     val hasMenu = onMenu != null
+    val canDrag = reorder != null
+    val haptics = LocalHapticFeedback.current
+    // When this gesture started, and when it became a long press: a long press isn't also a tap.
+    val times = remember { LongArray(2) }
     return this
         .pointerInput(hasMenu) {
             if (!hasMenu) return@pointerInput
@@ -119,12 +136,43 @@ fun Modifier.pressable(
                 }
             }
         }
+        .then(
+            if (!canDrag) Modifier else Modifier
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        times[0] = down.uptimeMillis
+                        val long = awaitLongPressOrCancellation(down.id) ?: return@awaitEachGesture
+                        times[1] = long.uptimeMillis
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        val h = handle ?: return@awaitEachGesture
+                        h.start(long.position)
+                        var total = Offset.Zero
+                        var moved = false
+                        val finished = drag(long.id) { change ->
+                            val delta = change.positionChange()
+                            total += delta
+                            if (!moved && total.getDistance() > viewConfiguration.touchSlop) {
+                                moved = true
+                                h.drag(total)
+                            } else if (moved) h.drag(delta)
+                            change.consume()
+                        }
+                        when {
+                            !moved -> { h.cancel(); menu?.invoke() }
+                            finished -> h.end()
+                            else -> h.cancel()
+                        }
+                    }
+                }
+                .semantics { if (hasMenu) onLongClick("Menu") { menu?.invoke(); true } }
+        )
         .combinedClickable(
             interactionSource = interaction,
             indication = null,
             role = Role.Button,
-            onClick = { click?.invoke() },
-            onLongClick = if (hasMenu) ({ menu?.invoke() }) else null,
+            onClick = { if (!(canDrag && times[1] > times[0])) click?.invoke() },
+            onLongClick = if (hasMenu && !canDrag) ({ menu?.invoke() }) else null,
         )
 }
 
@@ -148,6 +196,7 @@ fun Tile(
     onClick: (() -> Unit)? = null,
     onMenu: (() -> Unit)? = null,
     contentPadding: Dp = 16.dp,
+    reorder: ReorderHandle? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val interaction = remember { MutableInteractionSource() }
@@ -155,7 +204,7 @@ fun Tile(
         .pressScale(interaction)
         .clip(shape)
         .background(color)
-    val clickable = if (onClick != null || onMenu != null) base.pressable(onClick, onMenu, interaction) else base
+    val clickable = if (onClick != null || onMenu != null) base.pressable(onClick, onMenu, interaction, reorder) else base
     Box(clickable.padding(contentPadding), content = content)
 }
 

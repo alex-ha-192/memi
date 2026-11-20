@@ -3,6 +3,7 @@
 //! Escape closes it.
 
 use super::app::*;
+use super::drag::{self, DragNote};
 use super::theme::Colors;
 use super::widgets::*;
 use crate::model::*;
@@ -73,8 +74,15 @@ impl MemiView {
                 None => format!("Added {}", dates::ago(n.mentioned_at, today)),
             };
             let n2 = n.clone();
+            let (nid, drag_bg, drag_fg, accent) = (n.id, c.ink, c.bg, c.ink);
             list = list.child(self.note_card(("in-cat", i), n, None, &sub, None, c, cx)
-                .on_click(cx.listener(move |this, _, window, cx| this.open_note_editor(n2.clone(), window, cx))));
+                .on_click(cx.listener(move |this, _, window, cx| this.open_note_editor(n2.clone(), window, cx)))
+                // Drag onto another note to put it in that place.
+                .on_drag(DragNote { id: nid, collection_id: cid, label: n.text.clone().into() }, move |d, _, _, cx| drag::preview(d.label.clone(), drag_bg, drag_fg, cx))
+                .drag_over::<DragNote>(move |s, d, _, _| if d.id == nid || d.collection_id != cid { s } else { s.border_color(accent) })
+                .on_drop(cx.listener(move |this, d: &DragNote, _, cx| {
+                    if d.id != nid && d.collection_id == cid { this.change(cx, |s| s.place_note(d.id, nid)); }
+                })));
         }
         div().flex().flex_col().gap(px(14.))
             .child(div().flex().flex_col().gap(px(4.))
@@ -102,7 +110,7 @@ impl MemiView {
             } else {
                 list
             })
-            .when(!open.is_empty(), |d| d.child(caption("Click to edit. Right-click, or use ⋯, to mark done, a hit or a miss.", c.muted)))
+            .when(!open.is_empty(), |d| d.child(caption("Click to edit, drag to reorder. Right-click, or use ⋯, to mark done, a hit or a miss.", c.muted)))
     }
 
     // --- Add or edit a person --------------------------------------------------------------------

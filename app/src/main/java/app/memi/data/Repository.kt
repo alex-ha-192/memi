@@ -56,6 +56,27 @@ class Repository(private val db: AppDatabase) {
     }
 
 
+    /**
+     * Drag and drop: puts someone in [target]'s place (joining the pinned or unpinned group they're
+     * dropped into). Same rules as the desktop's Store::place_person.
+     */
+    suspend fun placePerson(id: Long, target: Long) {
+        val all = db.people().all()
+        val t = all.firstOrNull { it.id == target } ?: return
+        val me = all.firstOrNull { it.id == id } ?: return
+        val inGroup = all.filter { it.pinned == t.pinned }
+        val group = inGroup.filter { it.id != id }.toMutableList()
+        var at = group.indexOfFirst { it.id == target }.let { if (it < 0) group.size else it }
+        val old = inGroup.indexOfFirst { it.id == id }
+        // Dropping onto someone further down puts you after them; further up, before them.
+        if (old in 0..at) at += 1
+        group.add(at.coerceAtMost(group.size), me)
+        val now = now()
+        db.people().updateAll(group.mapIndexedNotNull { i, p ->
+            if (p.sortOrder == i && p.pinned == t.pinned) null else p.copy(sortOrder = i, pinned = t.pinned, updatedAt = now)
+        })
+    }
+
     fun deletePhotoFile(path: String?) = PlatformPhotos.delete(path)
 
     // Notes
@@ -65,6 +86,20 @@ class Repository(private val db: AppDatabase) {
         return db.notes().insert(
             Note(personId = personId, collectionId = collectionId, text = text.trim(), mentionedAt = now, firstMentionedAt = now, dueAt = dueAt, sortOrder = -now)
         )
+    }
+
+    /** Drag and drop: puts a note in [target]'s place within their category. */
+    suspend fun placeNote(id: Long, target: Long) {
+        val all = db.notes().all()
+        val me = all.firstOrNull { it.id == id } ?: return
+        val t = all.firstOrNull { it.id == target } ?: return
+        if (me.collectionId != t.collectionId) return
+        val list = all.filter { it.collectionId == t.collectionId && it.status == t.status }
+            .sortedWith(compareBy({ it.sortOrder }, { -it.mentionedAt }))
+        val now = now()
+        db.notes().updateAll(place(list, { it.id }, id, target).mapIndexedNotNull { i, n ->
+            if (n.sortOrder == i.toLong()) null else n.copy(sortOrder = i.toLong(), updatedAt = now)
+        })
     }
 
     suspend fun updateNote(note: Note) = db.notes().update(note.copy(updatedAt = now()))
@@ -110,6 +145,26 @@ class Repository(private val db: AppDatabase) {
         if (i < 0 || j !in mine.indices) return
         mine.add(j, mine.removeAt(i))
         db.collections().updateAll(mine.mapIndexed { index, c -> c.copy(sortOrder = index, updatedAt = now()) })
+    }
+
+    /** Drag and drop: puts a category in [target]'s place among that person's categories. */
+    suspend fun placeCollection(id: Long, target: Long) {
+        val t = db.collections().all().firstOrNull { it.id == target } ?: return
+        val pid = t.personId ?: return
+        val mine = db.collections().forPerson(pid)
+        if (mine.none { it.id == id }) return
+        val now = now()
+        db.collections().updateAll(place(mine, { it.id }, id, target).mapIndexedNotNull { i, c ->
+            if (c.sortOrder == i) null else c.copy(sortOrder = i, updatedAt = now)
+        })
+    }
+
+    /** [list] with [id] moved to where [target] is. */
+    private fun <T> place(list: List<T>, key: (T) -> Long, id: Long, target: Long): List<T> {
+        val from = list.indexOfFirst { key(it) == id }
+        val to = list.indexOfFirst { key(it) == target }
+        if (from < 0 || to < 0) return list
+        return list.toMutableList().apply { add(to, removeAt(from)) }
     }
 
     /** Removes a category. Its notes move to another of the person's categories so nothing is lost. */

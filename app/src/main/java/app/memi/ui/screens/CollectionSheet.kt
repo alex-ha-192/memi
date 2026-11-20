@@ -43,6 +43,8 @@ import app.memi.data.Person
 import app.memi.data.Status
 import app.memi.ui.components.NoteActions
 import app.memi.ui.components.NoteCard
+import app.memi.ui.components.rememberReorderState
+import app.memi.ui.components.reorderable
 import app.memi.ui.sheets.BentoSheet
 import app.memi.ui.theme.Bento
 import app.memi.ui.theme.BentoType
@@ -59,11 +61,14 @@ fun CollectionSheet(
     actions: NoteActions,
     onAdd: (String) -> Unit,
     onDismiss: () -> Unit,
+    /** Drag and drop: put the first note in the second one's place. */
+    onPlace: (Long, Long) -> Unit = { _, _ -> },
 ) {
     val colors = Bento.colors
     val slot = collection.slot % colors.tiles.size
     val items = notes.filter { it.personId == person.id && it.collectionId == collection.id && it.status == Status.OPEN }
         .sortedWith(compareBy({ it.sortOrder }, { -it.mentionedAt }))
+    val order = rememberReorderState<Long> { from, to -> onPlace(from, to) }
     var text by remember { mutableStateOf("") }
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { if (items.isEmpty()) runCatching { focus.requestFocus() } }
@@ -115,7 +120,7 @@ fun CollectionSheet(
         if (items.isEmpty()) {
             Text("Nothing here yet.", style = BentoType.body, color = colors.muted, modifier = Modifier.padding(start = 4.dp))
         } else {
-            Text(if (app.memi.ui.components.LocalHasMouse.current) "Right-click an item, or use its ⋯ button, to mark it done, a hit or a miss." else "Press and hold an item to mark it done, a hit or a miss.", style = BentoType.caption, color = colors.muted, modifier = Modifier.padding(start = 4.dp))
+            Text(if (app.memi.ui.components.LocalHasMouse.current) "Right-click an item, or use its ⋯ button, to mark it done, a hit or a miss. Hold and move to reorder." else "Hold an item to mark it done, a hit or a miss, or hold and move it to reorder.", style = BentoType.caption, color = colors.muted, modifier = Modifier.padding(start = 4.dp))
         }
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items.forEach { n ->
@@ -128,6 +133,8 @@ fun CollectionSheet(
                     background = colors.card,
                     leading = { Box(Modifier.width(8.dp).height(32.dp).clip(RoundedCornerShape(4.dp)).background(colors.strips[slot % colors.strips.size])) },
                     tag = due?.let { Triple("Due ${Dates.shortDayLabel(it)}", colors.tiles[slot], colors.tileInks[slot]) },
+                    modifier = Modifier.reorderable(order, n.id, RoundedCornerShape(22.dp)),
+                    reorder = order.handle(n.id),
                 )
             }
         }

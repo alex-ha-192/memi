@@ -69,6 +69,11 @@ class AppViewModel(private val repo: Repository, private val prefs: ThemePrefs) 
 
     fun reopen(note: Note) = viewModelScope.launch { repo.reopen(note) }
 
+    // Drag and drop
+    fun placePerson(id: Long, target: Long) = viewModelScope.launch { repo.placePerson(id, target) }
+    fun placeCollection(id: Long, target: Long) = viewModelScope.launch { repo.placeCollection(id, target) }
+    fun placeNote(id: Long, target: Long) = viewModelScope.launch { repo.placeNote(id, target) }
+
     fun moveNote(note: Note, to: NoteCollection) = viewModelScope.launch {
         repo.updateNote(note.copy(collectionId = to.id))
         showToast("Moved to ${to.name}", "Undo") { viewModelScope.launch { repo.updateNote(note) } }

@@ -87,6 +87,9 @@ interface NoteDao {
     @Update
     suspend fun update(note: Note)
 
+    @Update
+    suspend fun updateAll(notes: List<Note>)
+
     @Delete
     suspend fun delete(note: Note)
 

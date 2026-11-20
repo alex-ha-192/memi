@@ -3,6 +3,7 @@
 
 use super::app::*;
 use super::app::Menu;
+use super::drag::{self, DragCategory, DragNote, DragPerson};
 use super::theme::{Colors, SCHEMES};
 use super::widgets::*;
 use crate::model::*;
@@ -264,9 +265,16 @@ impl MemiView {
     fn person_row(&self, p: &Person, selected: bool, c: &Colors, cx: &mut Context<Self>) -> impl IntoElement {
         let open = insights::open_count(p.id, &self.notes);
         let (id, p2) = (p.id, p.clone());
+        let (drag_bg, drag_fg, accent) = (c.ink, c.bg, c.ink);
         div().id(("person", p.id as usize)).flex_none().flex().items_center().gap(px(12.)).p(px(8.)).mb(px(4.)).rounded(px(18.)).cursor_pointer()
             .when(selected, |d| d.bg(c.card).border_1().border_color(c.line))
             .when(!selected, |d| d.border_1().border_color(transparent_black()).hover(|s| s.bg(c.card)))
+            // Drag onto another person to put them in that place.
+            .on_drag(DragPerson { id, label: p.name.clone().into() }, move |d, _, _, cx| drag::preview(d.label.clone(), drag_bg, drag_fg, cx))
+            .drag_over::<DragPerson>(move |s, d, _, _| if d.id == id { s } else { s.border_color(accent) })
+            .on_drop(cx.listener(move |this, d: &DragPerson, _, cx| {
+                if d.id != id { this.change(cx, |s| s.place_person(d.id, id)); }
+            }))
             .on_click(cx.listener(move |this, _, _, cx| { this.selected = Some(id); this.page_open = true; cx.notify(); }))
             .on_mouse_down(MouseButton::Right, cx.listener(move |this, e: &MouseDownEvent, _, cx| {
                 this.menu = Some(Menu { at: e.position, kind: MenuKind::Person(p2.clone()) });
@@ -424,8 +432,16 @@ impl MemiView {
         });
         let (pid, cid) = (p.id, cat.id);
         let cat2 = cat.clone();
+        let (drag_bg, drag_fg, accent) = (c.ink, c.bg, c.ink);
         div().id(("cat", cat.id as usize)).h(px(132.)).rounded(px(24.)).bg(c.tile(cat.slot)).p(px(16.)).flex().flex_col().justify_between().cursor_pointer()
+            .border_2().border_color(transparent_black())
             .hover(|s| s.opacity(0.92))
+            // Drag onto another category to put it in that place.
+            .on_drag(DragCategory { id: cid, label: cat.name.clone().into() }, move |d, _, _, cx| drag::preview(d.label.clone(), drag_bg, drag_fg, cx))
+            .drag_over::<DragCategory>(move |s, d, _, _| if d.id == cid { s } else { s.border_color(accent) })
+            .on_drop(cx.listener(move |this, d: &DragCategory, _, cx| {
+                if d.id != cid { this.change(cx, |s| s.place_collection(d.id, cid)); }
+            }))
             .on_click(cx.listener(move |this, _, window, cx| this.open_category(pid, cid, window, cx)))
             .on_mouse_down(MouseButton::Right, cx.listener(move |this, e: &MouseDownEvent, _, cx| {
                 this.menu = Some(Menu { at: e.position, kind: MenuKind::Category(cat2.clone()) });

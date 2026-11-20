@@ -155,6 +155,7 @@ private fun Content(vm: AppViewModel) {
             onMove = { p, d -> vm.movePerson(p, d) },
             onEdit = { dialog = Dialog.EditPerson(it) },
             onRemove = { dialog = Dialog.RemovePerson(it) },
+            onPlace = { a, b -> vm.placePerson(a, b) },
         )
     }
     fun callbacksFor(person: Person) = PersonCallbacks(
@@ -170,6 +171,7 @@ private fun Content(vm: AppViewModel) {
             }
         },
         onNewCollection = { dialog = Dialog.EditCollection(person.id, null) },
+        onPlaceCollection = { a, b -> vm.placeCollection(a, b) },
     )
 
     // Opening something from Still fresh or search goes straight to its category.
@@ -349,6 +351,7 @@ private fun Content(vm: AppViewModel) {
                     person, c, notes, actions,
                     onAdd = { text -> vm.addNote(person, c, text, null) },
                     onDismiss = { dialog = null },
+                    onPlace = { a, b -> vm.placeNote(a, b) },
                 )
             } else {
                 LaunchedEffect(Unit) { dialog = null }

@@ -80,6 +80,9 @@ import app.memi.ui.components.SectionHeader
 import app.memi.ui.components.TagChip
 import app.memi.ui.components.Tile
 import app.memi.ui.components.pressable
+import app.memi.ui.components.ReorderState
+import app.memi.ui.components.rememberReorderState
+import app.memi.ui.components.reorderable
 import app.memi.ui.theme.Bento
 import app.memi.ui.theme.BentoType
 import app.memi.ui.theme.Motion
@@ -90,6 +93,8 @@ class PeopleActions(
     val onMove: (Person, Int) -> Unit,
     val onEdit: (Person) -> Unit,
     val onRemove: (Person) -> Unit,
+    /** Drag and drop: put the first person in the second one's place. */
+    val onPlace: (Long, Long) -> Unit = { _, _ -> },
 )
 
 data class HomeModel(
@@ -125,6 +130,7 @@ fun HomeScreen(
 ) {
     val fresh = remember(model) { Insights.stillFresh(model.notes, model.people, model.collections) }
     val events = remember(model) { Insights.nextEvents(model.people, model.notes, model.collections, NEXT_EVENTS) }
+    val peopleOrder = rememberReorderState<Long> { from, to -> peopleActions.onPlace(from, to) }
     val hPad = if (asListPane) 0.dp else 22.dp
 
     LazyColumn(
@@ -189,7 +195,7 @@ fun HomeScreen(
                         modifier = Modifier.animateItem(),
                     ) {
                         items(model.people, key = { it.id }) { p ->
-                            PersonCard(p, model.people, peopleActions, Modifier.animateItem()) { onOpenPerson(p.id) }
+                            PersonCard(p, model.people, peopleActions, peopleOrder, Modifier.animateItem()) { onOpenPerson(p.id) }
                         }
                     }
                 }
@@ -201,6 +207,7 @@ fun HomeScreen(
                         selected = p.id == selectedPersonId,
                         modifier = Modifier.animateItem(),
                         menu = Pair(model.people, peopleActions),
+                        reorder = peopleOrder,
                     ) { onOpenPerson(p.id) }
                 }
             }
@@ -462,13 +469,14 @@ fun Mascot(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun PersonCard(p: Person, all: List<Person>, actions: PeopleActions, modifier: Modifier, onClick: () -> Unit) {
+private fun PersonCard(p: Person, all: List<Person>, actions: PeopleActions, order: ReorderState<Long>, modifier: Modifier, onClick: () -> Unit) {
     val colors = Bento.colors
     val interaction = remember { MutableInteractionSource() }
     var menu by remember { mutableStateOf(false) }
     Box(modifier) {
         Column(
-            Modifier.width(82.dp).pressScale(interaction, 0.95f).pressable(onClick, { menu = true }, interaction),
+            Modifier.width(82.dp).reorderable(order, p.id, RoundedCornerShape(22.dp))
+                .pressScale(interaction, 0.95f).pressable(onClick, { menu = true }, interaction, order.handle(p.id)),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Box {
@@ -489,18 +497,23 @@ fun PersonRow(
     selected: Boolean,
     modifier: Modifier = Modifier,
     menu: Pair<List<Person>, PeopleActions>? = null,
+    /** Set to let people be dragged into a new order. */
+    reorder: ReorderState<Long>? = null,
     onClick: () -> Unit,
 ) {
     val colors = Bento.colors
     var menuOpen by remember { mutableStateOf(false) }
     Box(modifier) {
+        val shape = RoundedCornerShape(16.dp)
         Tile(
-            Modifier.fillMaxWidth().padding(bottom = 2.dp),
-            color = if (selected) colors.card else Color.Transparent,
-            shape = RoundedCornerShape(16.dp),
+            Modifier.fillMaxWidth().padding(bottom = 2.dp)
+                .then(if (reorder != null) Modifier.reorderable(reorder, p.id, shape) else Modifier),
+            color = if (selected) colors.card else if (reorder?.dragging == p.id) colors.sheet else Color.Transparent,
+            shape = shape,
             onClick = onClick,
             onMenu = if (menu != null) ({ menuOpen = true }) else null,
             contentPadding = 6.dp,
+            reorder = reorder?.handle(p.id),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 4.dp)) {
                 PersonPhoto(p, Modifier.size(44.dp), RoundedCornerShape(14.dp))

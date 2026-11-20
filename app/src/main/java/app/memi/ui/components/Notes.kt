@@ -82,6 +82,8 @@ fun NoteCard(
     tag: Triple<String, Color, Color>? = null,
     background: Color = Bento.colors.card,
     onClick: (() -> Unit)? = null,
+    /** Set to let the note be dragged into a new order (hold, then move). */
+    reorder: ReorderHandle? = null,
 ) {
     val colors = Bento.colors
     var menuOpen by remember { mutableStateOf(false) }
@@ -97,7 +99,7 @@ fun NoteCard(
                 .clip(RoundedCornerShape(22.dp))
                 .background(background)
                 .hoverable(interaction)
-                .pressable(onClick = onClick ?: { actions.onEdit(note) }, onMenu = { menuOpen = true }, interaction = interaction)
+                .pressable(onClick = onClick ?: { actions.onEdit(note) }, onMenu = { menuOpen = true }, interaction = interaction, reorder = reorder)
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp),

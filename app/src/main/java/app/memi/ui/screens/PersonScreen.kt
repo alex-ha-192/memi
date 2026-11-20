@@ -62,6 +62,9 @@ import app.memi.ui.components.SectionHeader
 import app.memi.ui.components.TagChip
 import app.memi.ui.components.Tile
 import app.memi.ui.components.pressable
+import app.memi.ui.components.ReorderState
+import app.memi.ui.components.rememberReorderState
+import app.memi.ui.components.reorderable
 import app.memi.ui.theme.Bento
 import app.memi.ui.theme.BentoType
 import app.memi.ui.theme.Motion
@@ -72,6 +75,8 @@ class PersonCallbacks(
     val onOpenCollection: (NoteCollection) -> Unit,
     val onCollectionMenu: (NoteCollection, CollectionAction) -> Unit,
     val onNewCollection: () -> Unit,
+    /** Drag and drop: put the first category in the second one's place. */
+    val onPlaceCollection: (Long, Long) -> Unit = { _, _ -> },
 )
 
 enum class CollectionAction { EDIT, MOVE_EARLIER, MOVE_LATER, DELETE }
@@ -276,13 +281,14 @@ private fun CollectionTiles(
     extraTile: (@Composable (Modifier) -> Unit)?,
     modifier: Modifier,
 ) {
+    val order = rememberReorderState<Long> { from, to -> callbacks.onPlaceCollection(from, to) }
     val cells = mutableListOf<@Composable (Modifier) -> Unit>()
     if (extraTile != null) cells.add(extraTile)
     collections.forEachIndexed { index, c ->
         val items = open.filter { it.collectionId == c.id }.sortedWith(compareBy({ it.sortOrder }, { -it.mentionedAt }))
         val first = index == 0
         val last = index == collections.lastIndex
-        cells.add { m -> CollectionTile(person, c, items, first, last, callbacks, m) }
+        cells.add { m -> CollectionTile(person, c, items, first, last, callbacks, order, m) }
     }
     cells.add { m -> NewCollectionTile(callbacks.onNewCollection, m) }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -303,6 +309,7 @@ private fun CollectionTile(
     first: Boolean,
     last: Boolean,
     callbacks: PersonCallbacks,
+    order: ReorderState<Long>,
     modifier: Modifier,
 ) {
     val colors = Bento.colors
@@ -310,10 +317,11 @@ private fun CollectionTile(
     var menu by remember { mutableStateOf(false) }
     Box(modifier) {
         Tile(
-            Modifier.fillMaxSize().heightIn(min = 112.dp),
+            Modifier.fillMaxSize().heightIn(min = 112.dp).reorderable(order, c.id, RoundedCornerShape(24.dp)),
             color = colors.tiles[slot],
             onClick = { callbacks.onOpenCollection(c) },
             onMenu = { menu = true },
+            reorder = order.handle(c.id),
         ) {
             Column(Modifier.fillMaxWidth()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
