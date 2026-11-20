@@ -72,6 +72,16 @@
     <keyword>notes</keyword>
   </keywords>
   <releases>
+    <release version="0.5.1" date="2026-11-20">
+      <description>
+        <p>Lost your recovery key? You can now start sync over from the Sync screen. Your Memi makes a new key and a fresh backup from what's on this device, and your other devices ask for the new key.</p>
+        <ul>
+          <li>A device that still has the old key no longer overwrites a backup it can't open</li>
+          <li>The AppImage can update itself with Gear Lever or AppImageUpdate</li>
+          <li>Downloads keep the same file names, so links always get the newest version</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.5.0" date="2026-11-20">
       <description>
         <p>The first release for Linux and Windows, rebuilt from the ground up.</p>
