@@ -10,7 +10,13 @@ import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onLast
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
@@ -86,33 +92,49 @@ class ScreenTour {
         rule.waitForIdle()
     }
 
-    private fun text(t: String): SemanticsNodeInteraction = rule.onAllNodesWithText(t, substring = true, useUnmergedTree = true).onFirst()
-    /** Exactly this text, e.g. a person's name under their photo in Everyone. */
-    private fun exact(t: String): SemanticsNodeInteraction = rule.onAllNodesWithText(t, useUnmergedTree = true).onFirst()
+    /** Finds a node, scrolling any list it may be hiding in (large text pushes things below the fold). */
+    private fun find(m: SemanticsMatcher, last: Boolean = false): SemanticsNodeInteraction {
+        if (rule.onAllNodes(m, useUnmergedTree = true).fetchSemanticsNodes().isEmpty()) {
+            val lists = rule.onAllNodes(hasScrollToNodeAction()).fetchSemanticsNodes().size
+            for (i in 0 until lists) {
+                if (runCatching { rule.onAllNodes(hasScrollToNodeAction())[i].performScrollToNode(m) }.isSuccess) break
+            }
+        }
+        val all = rule.onAllNodes(m, useUnmergedTree = true)
+        val node = if (last) all.onLast() else all.onFirst()
+        runCatching { node.performScrollTo() }
+        rule.waitForIdle()
+        return node
+    }
+    private fun text(t: String): SemanticsNodeInteraction = find(hasText(t, substring = true))
+    /** A note inside the open sheet (the same words also appear on the category tile behind it). */
+    private fun note(t: String): SemanticsNodeInteraction = find(hasText(t, substring = true), last = true)
+    /** Maya in the people list: "Maya" on a phone, "Maya Okafor" where there's room for the full name. */
+    private fun maya(): SemanticsNodeInteraction = find(hasText("Maya") or hasText("Maya Okafor"))
     private fun desc(d: String): SemanticsNodeInteraction = rule.onAllNodesWithContentDescription(d).onFirst()
 
     @Test fun t01_home() { text("Maya"); shot("01-home") }
 
-    @Test fun t02_person() { exact("Maya").performClick(); shot("02-person") }
+    @Test fun t02_person() { maya().performClick(); shot("02-person") }
 
     @Test fun t03_category() {
-        exact("Maya").performClick(); text("Gift ideas").performClick(); shot("03-category-sheet")
-        text("blue ceramic mug").performTouchInput { longClick() }; shot("04-note-menu")
+        maya().performClick(); text("Gift ideas").performClick(); shot("03-category-sheet")
+        note("blue ceramic mug").performTouchInput { longClick() }; shot("04-note-menu")
         text("Edit").performClick(); shot("05-note-editor")
     }
 
     @Test fun t04_newCategory() {
-        exact("Maya").performClick(); text("New category").performClick(); shot("06-category-editor")
+        maya().performClick(); text("New category").performClick(); shot("06-category-editor")
         text("A date").performClick(); shot("07-date-picker")
     }
 
     @Test fun t05_personMenu() {
-        exact("Maya").performTouchInput { longClick() }; shot("08-person-menu")
+        maya().performTouchInput { longClick() }; shot("08-person-menu")
         text("Edit").performClick(); shot("09-person-editor")
     }
 
     @Test fun t06_removePerson() {
-        exact("Maya").performTouchInput { longClick() }; text("Remove").performClick(); shot("10-remove-dialog")
+        maya().performTouchInput { longClick() }; text("Remove").performClick(); shot("10-remove-dialog")
     }
 
     @Test fun t07_themesAndSync() {
@@ -126,8 +148,8 @@ class ScreenTour {
     }
 
     @Test fun t09_toast() {
-        exact("Maya").performClick(); text("Gift ideas").performClick()
-        text("Signed copy").performTouchInput { longClick() }; text("hit").performClick(); shot("14-marked-hit")
+        maya().performClick(); text("Gift ideas").performClick()
+        note("Signed copy").performTouchInput { longClick() }; find(hasText("Hit")).performClick(); shot("14-marked-hit")
     }
 }
 
