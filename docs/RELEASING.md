@@ -1,4 +1,4 @@
-# Releasing Your Memi
+# Releasing Memi
 
 Notes for maintainers on how builds, releases and listings are published. Everything runs in GitHub Actions; nothing is built on a personal computer.
 

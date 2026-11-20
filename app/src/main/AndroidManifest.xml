@@ -20,7 +20,7 @@
         android:theme="@style/Theme.Memi">
 
         <!-- Google's ML Kit (behind the QR scanner) normally starts itself when the app launches.
-             Your Memi starts it only when you scan a code, so nothing of Google's runs unless you
+             Memi starts it only when you scan a code, so nothing of Google's runs unless you
              use sync. See rememberQrScanner in platform/AndroidPlatform.kt. -->
         <provider
             android:name="com.google.mlkit.common.internal.MlKitInitProvider"

@@ -38,7 +38,7 @@ pub struct Person {
     pub uid: String,
     pub name: String,
     pub relationship: String,
-    /// Absolute path of Your Memi's own copy of the photo.
+    /// Absolute path of Memi's own copy of the photo.
     pub photo_path: Option<String>,
     pub birthday_month: Option<u32>,
     pub birthday_day: Option<u32>,

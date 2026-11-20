@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
   <id>app.yourmemi.YourMemi</id>
-  <name>Your Memi</name>
+  <name>Memi</name>
   <summary>Notes on the people in your life</summary>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
   <developer id="app.yourmemi">
-    <name>Your Memi</name>
+    <name>Memi</name>
   </developer>
   <description>
     <p>
-      Your Memi keeps the specific, useful things you learn about the people in your life:
+      Memi keeps the specific, useful things you learn about the people in your life:
       the gift idea someone mentioned in passing, the plan you made over coffee, the allergy
       you don't want to forget.
     </p>
@@ -91,7 +91,7 @@
     </release>
     <release version="0.5.1" date="2026-11-20">
       <description>
-        <p>Lost your recovery key? You can now start sync over from the Sync screen. Your Memi makes a new key and a fresh backup from what's on this device, and your other devices ask for the new key.</p>
+        <p>Lost your recovery key? You can now start sync over from the Sync screen. Memi makes a new key and a fresh backup from what's on this device, and your other devices ask for the new key.</p>
         <ul>
           <li>A device that still has the old key no longer overwrites a backup it can't open</li>
           <li>The AppImage can update itself with Gear Lever or AppImageUpdate</li>

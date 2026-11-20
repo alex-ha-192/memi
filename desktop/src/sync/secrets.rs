@@ -1,10 +1,11 @@
 //! Secrets (the sync key and Google's sign-in token) go in the system password store: Windows
 //! Credential Manager, or the Secret Service on Linux (GNOME Keyring, KWallet). Where there's no
-//! password store, they fall back to a file in Your Memi's folder that only your account can read.
+//! password store, they fall back to a file in Memi's folder that only your account can read.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
+/// Where the key is filed in the keyring. Still "Your Memi" (the app's name before 0.6.2), so keys saved by earlier versions are found.
 const SERVICE: &str = "Your Memi";
 
 pub struct Secrets {

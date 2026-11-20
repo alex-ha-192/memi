@@ -357,7 +357,7 @@ impl MemiView {
             Some(Problem::NeedsKey) => {
                 if self.sync_ui.pairing.is_none() && self.sync_ui.typing_key.is_none() { self.start_pairing(cx); }
                 col = col
-                    .child(body("Your Memi is already syncing on another device. To bring it here, that device hands this computer the key.", c.ink));
+                    .child(body("Memi is already syncing on another device. To bring it here, that device hands this computer the key.", c.ink));
                 if let Some(confirm) = self.sync_ui.pairing_confirm.clone() {
                     col = col.child(div().rounded(px(18.)).bg(c.card).border_1().border_color(c.line).p(px(16.)).flex().flex_col().gap(px(4.))
                         .child(card_title("On any device that's already syncing", c.ink))
@@ -404,7 +404,7 @@ impl MemiView {
                     .on_click(cx.listener(|this, _, _, cx| {
                         this.overlay = Some(Overlay::Confirm {
                             title: "Start sync over?".into(),
-                            body: "Without its recovery key, nobody can open the copy in your Google account, so Your Memi will delete it and make a new one from what's on this computer. You'll get a new recovery key. Your other devices will ask for it before they sync again, and anything that's only on them stays there until you set them up.".into(),
+                            body: "Without its recovery key, nobody can open the copy in your Google account, so Memi will delete it and make a new one from what's on this computer. You'll get a new recovery key. Your other devices will ask for it before they sync again, and anything that's only on them stays there until you set them up.".into(),
                             confirm: "Start over".into(),
                             action: ConfirmAction::StartSyncOver,
                         });
@@ -414,7 +414,7 @@ impl MemiView {
             _ if !s.enabled => {
                 col = col
                     .child(body("Keep a copy of everything in your own Google account, so your phone and this computer stay in step.", c.ink))
-                    .child(body("It's encrypted on this computer before it leaves, so Google can't read it, and it sits in a hidden folder only Your Memi can open, away from your Drive files. Nobody else, including us, ever gets a copy.", c.ink))
+                    .child(body("It's encrypted on this computer before it leaves, so Google can't read it, and it sits in a hidden folder only Memi can open, away from your Drive files. Nobody else, including us, ever gets a copy.", c.ink))
                     .child(primary_button("connect", if busy { "Waiting for your browser…" } else { "Choose a Google account" }, !busy, c)
                         .on_click(cx.listener(|this, _, _, cx| this.run_sync(cx, |e| e.sign_in_and_connect()))))
                     .when(busy, |d| d.child(caption("Finish signing in in your browser, then come back here.", c.muted)));
@@ -427,11 +427,11 @@ impl MemiView {
                     .child(card_title(s.account.clone().map(|a| format!("Syncing with {a}")).unwrap_or_else(|| "Sync is on".into()), c.ink))
                     .child(label(detail, c.muted)));
                 if let Some(Problem::NeedsSignIn) = problem {
-                    col = col.child(body("Google needs you to sign in again before Your Memi can sync.", c.ink))
+                    col = col.child(body("Google needs you to sign in again before Memi can sync.", c.ink))
                         .child(primary_button("again", "Sign in again", !busy, c).on_click(cx.listener(|this, _, _, cx| this.run_sync(cx, |e| e.sign_in_and_connect()))));
                 }
                 if let Some(Problem::Failed(m)) = &problem {
-                    col = col.child(body(format!("The last sync didn't work ({m}). Your Memi will try again by itself."), c.ink));
+                    col = col.child(body(format!("The last sync didn't work ({m}). Memi will try again by itself."), c.ink));
                 }
                 col = col.child(div().flex().gap(px(8.))
                     .child(secondary_button("now", "Sync now", false, c).flex_1().on_click(cx.listener(|this, _, _, cx| this.run_sync(cx, |e| e.sync()))))

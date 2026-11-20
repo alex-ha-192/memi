@@ -70,7 +70,7 @@ pub fn seal(key: &[u8; 32], plain: &[u8]) -> Result<Vec<u8>> {
 }
 
 pub fn open(key: &[u8; 32], blob: &[u8]) -> Result<Vec<u8>> {
-    ensure!(is_backup(blob), "This isn't a Your Memi backup.");
+    ensure!(is_backup(blob), "This isn't a Memi backup.");
     let iv_start = MAGIC.len() + SALT;
     let iv = &blob[iv_start..iv_start + IV];
     let cipher = Aes256Gcm::new_from_slice(key).map_err(|_| anyhow!("bad key"))?;

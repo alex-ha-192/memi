@@ -1,4 +1,4 @@
-//! Your Memi for Windows and Linux.
+//! Memi for Windows and Linux.
 //!
 //! Everything lives in one folder on this computer (see `data_dir`). Nothing is sent anywhere
 //! unless you turn on sync, which uploads one end-to-end encrypted file to your own Google
@@ -30,7 +30,7 @@ fn data_dir() -> std::path::PathBuf {
 
 fn main() {
     let data = data_dir();
-    std::fs::create_dir_all(&data).expect("Couldn't create Your Memi's data folder");
+    std::fs::create_dir_all(&data).expect("Couldn't create Memi's data folder");
     let photo_dir = data.join("photos");
     let _ = std::fs::create_dir_all(&photo_dir);
     // Everything below the screens is memi-engine; this computer's storage is its SQLite store.
@@ -57,7 +57,7 @@ fn main() {
         let window = cx.open_window(
             WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
-                titlebar: Some(TitlebarOptions { title: Some("Your Memi".into()), ..Default::default() }),
+                titlebar: Some(TitlebarOptions { title: Some("Memi".into()), ..Default::default() }),
                 app_id: Some(APP_ID.into()),
                 window_min_size: Some(size(px(480.), px(560.))),
                 icon,
@@ -80,7 +80,7 @@ fn main() {
             },
         );
         if window.is_err() {
-            eprintln!("Your Memi couldn't open its window.");
+            eprintln!("Memi couldn't open its window.");
             cx.quit();
         }
         cx.on_window_closed(|cx, _| { if cx.windows().is_empty() { cx.quit(); } }).detach();

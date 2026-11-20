@@ -1,4 +1,4 @@
-# Builds Your Memi everywhere on every push to main:
+# Builds Memi everywhere on every push to main:
 #   Android APK (with memi-engine built by cargo-ndk), Android screenshots (emulator), Linux binary + AppImage, Windows .msi.
 # Pushing a tag like v0.5.0 also publishes a GitHub Release with every download
 # (Obtainium watches these for the APK; AppImage updaters use the .zsync file).

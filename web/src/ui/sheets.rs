@@ -359,7 +359,7 @@ fn SyncSheet() -> impl IntoView {
         }
         if ui.problem == Some(Problem::NeedsKey) {
             return view! {
-                <p>"Your Memi is already syncing on another device. To join it, this browser needs its key."</p>
+                <p>"Memi is already syncing on another device. To join it, this browser needs its key."</p>
                 {ui.asking.clone().map(|ask| view! {
                     <div class="card col gap">
                         <b>"On any device that's already syncing"</b>

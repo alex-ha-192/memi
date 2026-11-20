@@ -25,8 +25,8 @@ impl Render for MemiView {
         // The person's name shows in the title only while their page is on screen.
         let page_showing = f32::from(window.viewport_size().width) >= TWO_PANE_MIN || self.page_open;
         window.set_window_title(&match self.shown_person() {
-            Some(p) if page_showing => format!("{} · Your Memi", p.first_name()),
-            _ => "Your Memi".into(),
+            Some(p) if page_showing => format!("{} · Memi", p.first_name()),
+            _ => "Memi".into(),
         });
         // Nothing focused (after a sheet closes, say): take focus so Escape and shortcuts reach us.
         if window.focused(cx).is_none() { self.focus.focus(window, cx); }
@@ -304,7 +304,7 @@ impl MemiView {
         let Some(p) = self.shown_person() else {
             return div().flex_1().h_full().flex().items_center().justify_center().flex_col().gap(px(10.))
                 .child(img("mascot.png").size(px(140.)))
-                .child(section("Your Memi", c))
+                .child(section("Memi", c))
                 .child(body("People you add show up here.", c.muted))
                 .into_any_element();
         };

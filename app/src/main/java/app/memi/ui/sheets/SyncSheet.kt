@@ -54,7 +54,7 @@ fun SyncSheet(onDismiss: () -> Unit) {
             problem is SyncManager.Problem.NeedsRecoveryKey -> RecoveryKeyEntry(sync, problem.confirm)
             !state.enabled -> {
                 Body("Keep a copy of everything in your own Google account, so a new phone, tablet or computer can pick up where you left off.")
-                Body("It's encrypted on this phone before it leaves, so Google can't read it, and it sits in a hidden folder only Your Memi can open, away from your Drive files. Nobody else, including us, ever gets a copy.")
+                Body("It's encrypted on this phone before it leaves, so Google can't read it, and it sits in a hidden folder only Memi can open, away from your Drive files. Nobody else, including us, ever gets a copy.")
                 PrimaryButton(if (state.busy) "Setting up…" else "Choose a Google account", Modifier.fillMaxWidth(), enabled = !state.busy) { chooseAccount() }
             }
             else -> {
@@ -67,10 +67,10 @@ fun SyncSheet(onDismiss: () -> Unit) {
                     },
                 )
                 if (problem is SyncManager.Problem.NeedsSignIn) {
-                    Body("Google needs you to sign in again before Your Memi can sync.")
+                    Body("Google needs you to sign in again before Memi can sync.")
                     PrimaryButton("Choose a Google account", Modifier.fillMaxWidth()) { chooseAccount() }
                 }
-                if (problem is SyncManager.Problem.Failed) Body("The last sync didn't work (${problem.message}). Your Memi will try again by itself.")
+                if (problem is SyncManager.Problem.Failed) Body("The last sync didn't work (${problem.message}). Memi will try again by itself.")
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     SecondaryButton("Sync now", Modifier.weight(1f)) { sync.syncNow() }
                     SecondaryButton("Turn off", Modifier.weight(1f), danger = true) { sync.launch { turnOff(forgetKey = false) } }
@@ -186,7 +186,7 @@ private fun RecoveryKeyEntry(sync: SyncManager, confirm: String?) {
     val colors = Bento.colors
     var text by remember { mutableStateOf("") }
     var wrong by remember { mutableStateOf(false) }
-    Body("Your Memi is already syncing on another device. To join it, this phone needs its key.")
+    Body("Memi is already syncing on another device. To join it, this phone needs its key.")
     if (confirm != null) {
         Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(colors.card).padding(16.dp),

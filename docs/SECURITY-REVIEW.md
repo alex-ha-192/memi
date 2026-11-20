@@ -2,7 +2,7 @@
 
 For 0.6.1, every part of Memi that protects your data was checked against one rule: **use an established, widely reviewed library or platform service wherever one exists, and keep hand-written code only where no better-proven option exists.** This file records each decision, so the next change can be measured against it.
 
-The threat model hasn't changed. Your Memi lives on your devices and, if you turn sync on, as one encrypted file in your own Google Drive's hidden app folder. Nothing goes through a server of ours, because there isn't one. Google stores only ciphertext and never sees the key.
+The threat model hasn't changed. Memi lives on your devices and, if you turn sync on, as one encrypted file in your own Google Drive's hidden app folder. Nothing goes through a server of ours, because there isn't one. Google stores only ciphertext and never sees the key.
 
 ## What changed in 0.6.1
 

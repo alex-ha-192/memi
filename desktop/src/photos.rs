@@ -1,5 +1,5 @@
 //! Profile photos: picked from a file, turned the right way up, cropped in the app to 4:5,
-//! and kept as a JPEG in Your Memi's own folder. Nothing leaves the computer except inside an
+//! and kept as a JPEG in Memi's own folder. Nothing leaves the computer except inside an
 //! encrypted sync backup, if you turn sync on.
 
 use anyhow::{Context, Result};
@@ -71,7 +71,7 @@ pub fn save_bytes(bytes: &[u8], dir: &Path) -> Result<PathBuf> {
     Ok(path)
 }
 
-/// Deletes a photo, but only if it lives in Your Memi's own photo folder.
+/// Deletes a photo, but only if it lives in Memi's own photo folder.
 pub fn delete(path: Option<&str>, dir: &Path) {
     let Some(p) = path else { return };
     let p = Path::new(p);
