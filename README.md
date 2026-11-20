@@ -1,10 +1,10 @@
-# Your Memi
+# Memi
 
 <img src="docs/memi.png" width="120" align="right" alt="Memi the elephant">
 
-Your Memi is for keeping the specific things you want to remember about the people in your life: gift ideas, plans, what they can't eat, what they mentioned in passing. It isn't a contact book or a profile of everything you know about someone. It runs on Android, Windows and Linux.
+Memi is the elephant who remembers for you. Tell Memi the specific things you want to remember about the people in your life (gift ideas, plans, what they can't eat, what they mentioned in passing) and Memi keeps them in order and brings them back when they matter. It isn't a contact book or a profile of everything you know about someone. Memi runs on Android, Windows and Linux.
 
-Everything stays on your own devices. Sync is optional, and when it's on, your data is encrypted before it leaves your device and stored in your own Google Drive. There are no servers, accounts, analytics or ads. Read the [privacy policy](https://yourmemi.app/privacy/).
+Everything stays on your own devices. Sync is optional, and when it's on, your Memi is encrypted before it leaves your device and stored in your own Google Drive. There are no servers, accounts, analytics or ads. Read the [privacy policy](https://yourmemi.app/privacy/).
 
 **Website:** <https://yourmemi.app> · **Questions and bugs:** [open an issue](../../issues) or email hello@yourmemi.app
 
@@ -27,7 +27,7 @@ Each release lists the Android signing certificate's SHA-256 fingerprint, so you
 - **Notes:** press and hold (or right-click) for Hit, Miss, Mark done, Move to…, Edit and Delete.
 - **Photos:** pick one and crop it to a slightly portrait frame. The saved copy is re-encoded, so location and camera details are dropped.
 - **Themes:** Bento, Sorbet, Sea glass, Lavender and Clay, each in light and dark, or following the system.
-- **Layouts:** one screen at a time on a phone, two panes on a tablet or computer.
+- **Layouts:** one screen at a time on a phone or a narrow window (half a screen works), two panes on a tablet or a wider window.
 
 ## How sync works
 
@@ -107,7 +107,7 @@ docs/RELEASING.md                 How releases and the website are published
 
 ## Licence
 
-Your Memi is free software under the **GNU General Public License v3.0**; see [`LICENSE`](LICENSE). Bundled third-party pieces keep their own licences, all compatible with the GPL:
+Memi is free software under the **GNU General Public License v3.0**; see [`LICENSE`](LICENSE). Bundled third-party pieces keep their own licences, all compatible with the GPL:
 
 - Plus Jakarta Sans font: SIL Open Font License 1.1 (`licenses/plus-jakarta-sans-OFL.txt`)
 - Elephant icon and mascot, from Microsoft Fluent Emoji: MIT (`licenses/fluent-emoji-MIT.txt`)
