@@ -39,11 +39,14 @@ impl Render for MemiView {
             .text_color(c.ink)
             .key_context("Memi")
             .on_action(cx.listener(MemiView::back))
-            .on_action(cx.listener(|this, _: &NewPerson, window, cx| this.open_person_editor(None, window, cx)))
-            .on_action(cx.listener(|this, _: &Find, window, cx| this.open_search(window, cx)))
+            .on_action(cx.listener(|this, _: &NewPerson, window, cx| if this.welcome.is_none() { this.open_person_editor(None, window, cx) }))
+            .on_action(cx.listener(|this, _: &Find, window, cx| if this.welcome.is_none() { this.open_search(window, cx) }))
             .child({
                 let width = f32::from(window.viewport_size().width);
-                if width >= TWO_PANE_MIN {
+                if let Some(step) = self.welcome {
+                    // First launch: the questions fill the window (see welcome.rs).
+                    self.welcome_view(step, &c, cx)
+                } else if width >= TWO_PANE_MIN {
                     div().size_full().flex()
                         .child(self.list_pane(&c, false, window, cx))
                         .child(div().w(px(1.)).h_full().bg(c.line))

@@ -35,6 +35,11 @@ class ThemePrefs(private val store: DataStore<Preferences>) {
     val freshCollapsed: Flow<Boolean> = store.data.map { it[freshCollapsedKey] ?: false }
     suspend fun setFreshCollapsed(collapsed: Boolean) = store.edit { it[freshCollapsedKey] = collapsed }
 
+    private val welcomedKey = booleanPreferencesKey("welcomed")
+    /** The first-launch questions have been answered (or skipped, because this device already had people or sync). */
+    val welcomed: Flow<Boolean> = store.data.map { it[welcomedKey] ?: false }
+    suspend fun setWelcomed() = store.edit { it[welcomedKey] = true }
+
     private val remindersKey = stringSetPreferencesKey("birthdayReminders")
     /** Days before a birthday to be reminded (0, 1, 7). Empty means off, the default. */
     val birthdayReminders: Flow<Set<Int>> = store.data.map { p -> p[remindersKey].orEmpty().mapNotNull { it.toIntOrNull() }.toSet() }

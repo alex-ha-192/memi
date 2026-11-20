@@ -1,5 +1,7 @@
 package app.memi.ui
 
+import app.memi.ui.screens.FirstLaunch
+
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ContentTransform
@@ -98,7 +100,24 @@ fun MemiRoot(vm: AppViewModel, sync: SyncManager) {
     CompositionLocalProvider(LocalSync provides sync) {
         BentoTheme(theme) {
             PlatformSystemBars(dark = Bento.colors.isDark)
-            PointerModeProvider { Content(vm) }
+            val welcomed by vm.welcomed.collectAsStateWithLifecycle()
+            val people by vm.people.collectAsStateWithLifecycle()
+            val syncState by sync.state.collectAsStateWithLifecycle()
+            // A device that already has people or sync (every install from before 0.6.2) skips the questions.
+            LaunchedEffect(welcomed, people.isEmpty(), syncState.enabled) {
+                if (welcomed == false && (people.isNotEmpty() || syncState.enabled)) vm.setWelcomed()
+            }
+            when {
+                welcomed == null -> Box(Modifier.fillMaxSize().background(Bento.colors.bg))
+                welcomed == false && people.isEmpty() && !syncState.enabled -> FirstLaunch { token ->
+                    vm.setWelcomed()
+                    if (token != null) {
+                        sync.launch { connect(token) }
+                        vm.requestSyncSheet()
+                    }
+                }
+                else -> PointerModeProvider { Content(vm) }
+            }
         }
     }
 }
@@ -180,6 +199,11 @@ private fun Content(vm: AppViewModel) {
         search = null
         dialog = Dialog.Collection(personId, collectionId)
     }
+
+    // Right after signing in on first launch: the Sync sheet shows how it's going (and the code
+    // to compare, if another device has the key).
+    val openSync by vm.openSync.collectAsStateWithLifecycle()
+    LaunchedEffect(openSync) { if (openSync) { dialog = Dialog.Sync; vm.syncSheetOpened() } }
 
     PlatformBackHandler(themesOpen) { themesOpen = false }
     PlatformBackHandler(search != null && !themesOpen) { search = null }

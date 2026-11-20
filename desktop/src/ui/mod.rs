@@ -4,4 +4,5 @@ pub mod drag;
 mod panes;
 mod sheets;
 pub mod theme;
+mod welcome;
 mod widgets;

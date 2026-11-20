@@ -34,6 +34,16 @@ class AppViewModel(private val repo: Repository, private val prefs: ThemePrefs) 
 
     fun toggleFresh() = viewModelScope.launch { prefs.setFreshCollapsed(!freshCollapsed.value) }
 
+    /** Null until settings have loaded, then whether the first-launch questions are done. */
+    val welcomed: StateFlow<Boolean?> = prefs.welcomed.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    fun setWelcomed() = viewModelScope.launch { prefs.setWelcomed() }
+
+    /** Set when the Sync sheet should open by itself (right after signing in on first launch). */
+    private val _openSync = MutableStateFlow(false)
+    val openSync: StateFlow<Boolean> = _openSync.asStateFlow()
+    fun requestSyncSheet() { _openSync.value = true }
+    fun syncSheetOpened() { _openSync.value = false }
+
     /** Days before a birthday to be reminded (0, 1, 7); empty is off. */
     val birthdayReminders: StateFlow<Set<Int>> = prefs.birthdayReminders.stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
 

@@ -34,11 +34,13 @@ pub struct Prefs {
     pub birthday_reminders: Vec<i64>,
     /// Reminders already shown, so each appears once: "<person uid>:<date>:<days before>".
     pub reminded: Vec<String>,
+    /// The first-launch questions are answered (or were skipped: the computer already had people or sync).
+    pub welcomed: bool,
 }
 
 impl Default for Prefs {
     fn default() -> Self {
-        Prefs { scheme: "Bento".into(), appearance: Appearance::System, fresh_collapsed: false, birthday_reminders: vec![], reminded: vec![] }
+        Prefs { scheme: "Bento".into(), appearance: Appearance::System, fresh_collapsed: false, birthday_reminders: vec![], reminded: vec![], welcomed: false }
     }
 }
 
@@ -169,6 +171,8 @@ pub struct MemiView {
     pub focus: FocusHandle,
     /// The window is in front, so sync checks for changes every few seconds.
     pub active: bool,
+    /// The first-launch questions, while they're showing.
+    pub welcome: Option<super::welcome::Welcome>,
 }
 
 impl MemiView {
@@ -192,10 +196,11 @@ impl MemiView {
             search: None, query: String::new(), prefs, theme_open: false, overlay: None, crop: None,
             menu: None, toast: None, sync_ui: SyncUi::default(), toast_seq: 0, push_seq: 0,
             system_dark: is_dark(window.appearance()), _subs: subs, focus: cx.focus_handle(),
-            active: window.is_window_active(),
+            active: window.is_window_active(), welcome: None,
         };
         this.sync_ui.settings = this.sync.snapshot();
         this.reload();
+        this.settle_welcome(cx);
         this.apply_component_theme(cx);
         this.pull(cx);
         this.keep_in_step(cx);
@@ -583,6 +588,8 @@ impl MemiView {
         } else if self.page_open {
             // Narrow layout: from a person's page back to the list.
             self.page_open = false;
+        } else if self.welcome == Some(super::welcome::Welcome::Choice) {
+            self.welcome = Some(super::welcome::Welcome::Question);
         }
         cx.notify();
     }
