@@ -14,7 +14,7 @@ Everything stays on your own devices. Sync is optional, and when it's on, the da
 | Platform | How |
 |---|---|
 | Android | The APK from [Releases](../../releases), or add this repo to [Obtainium](https://obtainium.imranr.dev) for automatic updates |
-| Windows | `YourMemi-<version>.msi` (installs just for you and updates in place), or `YourMemi-<version>-portable.exe` |
+| Windows | `YourMemi-<version>.msi` (installs just for you and updates in place) |
 | Linux | Flathub (`app.yourmemi.YourMemi`), or `YourMemi-<version>-x86_64.AppImage` |
 
 ## What's in it
@@ -64,7 +64,7 @@ cargo test
 
 On Linux it needs: `libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libvulkan-dev libx11-xcb-dev libxcb1-dev libfontconfig-dev libfreetype-dev libssl-dev pkg-config`, and a Vulkan driver at runtime.
 
-Data lives in `%APPDATA%\YourMemi\data` on Windows and `~/.local/share/yourmemi` on Linux. **Portable mode:** if the program's file name contains "portable" (as the portable download's does), or a `portable.txt` or `Your Memi data` folder sits next to it, it keeps everything in a `Your Memi data` folder beside the program instead.
+Data lives in `%APPDATA%\YourMemi\data` on Windows and `~/.local/share/yourmemi` on Linux.
 
 Packaging (CI does all of these; see `.github/workflows/build.yml`):
 
@@ -74,7 +74,7 @@ Packaging (CI does all of these; see `.github/workflows/build.yml`):
 
 ## Continuous builds and releases
 
-Every push to `main` builds the APK, the .msi, the portable .exe, the AppImage and the Flatpak, and runs an Android screenshot tour on three emulator sizes (phone, phone in dark mode with large text, tablet). Results are under **Actions** › the latest **Build** run › **Artifacts**. Dev builds are numbered `0.0.<run>`.
+Every push to `main` builds the APK, the .msi, the AppImage and the Flatpak, and runs an Android screenshot tour on three emulator sizes (phone, phone in dark mode with large text, tablet). Results are under **Actions** › the latest **Build** run › **Artifacts**. Dev builds are numbered `0.0.<run>`.
 
 To release, push a version tag. The files are attached to a GitHub Release with checksums; Obtainium picks up the APK from there.
 

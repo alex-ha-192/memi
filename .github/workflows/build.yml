@@ -1,5 +1,5 @@
 # Builds Your Memi everywhere on every push to main:
-#   Android APK, Android screenshots (emulator), Linux binary + AppImage, Windows .msi + portable
+#   Android APK, Android screenshots (emulator), Linux binary + AppImage, Windows .msi
 #   .exe, and the Flatpak.
 # Pushing a tag like v0.5.0 also:
 #   - publishes a GitHub Release with every download (Obtainium watches these for the APK)
@@ -180,7 +180,7 @@ jobs:
           path: out/*
 
   windows:
-    name: Windows (.msi, portable .exe)
+    name: Windows (.msi)
     needs: version
     runs-on: windows-latest
     defaults:
@@ -198,7 +198,7 @@ jobs:
       - name: Build
         working-directory: desktop
         run: cargo build --release
-      - name: Installer and portable .exe
+      - name: Installer
         env:
           VERSION: ${{ needs.version.outputs.version }}
         run: |
@@ -207,7 +207,6 @@ jobs:
           wix build desktop/packaging/main.wxs -arch x64 \
             -d Version="$VERSION" -d Exe="desktop/target/release/your-memi.exe" -d Assets="desktop/assets" \
             -o "out/YourMemi-$VERSION.msi"
-          cp desktop/target/release/your-memi.exe "out/YourMemi-$VERSION-portable.exe"
       - uses: actions/upload-artifact@v4
         with:
           name: windows
