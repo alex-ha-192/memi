@@ -316,6 +316,7 @@ jobs:
           cp ../flatpak/app.yourmemi.YourMemi.yml app.yourmemi.YourMemi.yml
           sed -i "s|        tag: v.*|        tag: v$VERSION\n        commit: $COMMIT|" app.yourmemi.YourMemi.yml
           cp ../new/cargo-sources.json cargo-sources.json
-          git -c user.name="Your Memi release bot" -c user.email="noreply@yourmemi.app" commit -am "Update to $VERSION"
+          git add -A
+          git -c user.name="Your Memi release bot" -c user.email="noreply@yourmemi.app" commit -m "Update to $VERSION"
           git push origin "update-$VERSION"
           gh pr create --repo flathub/app.yourmemi.YourMemi --head "update-$VERSION" --title "Update to $VERSION" --body "Automated update from the Your Memi release."

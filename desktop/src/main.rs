@@ -25,12 +25,14 @@ use ui::app::{Back, Dirs, Find, MemiView, NewPerson};
 pub const APP_ID: &str = "app.yourmemi.YourMemi";
 
 /// ~/.local/share/yourmemi on Linux (inside the sandbox under Flatpak), %APPDATA%\YourMemi on Windows.
-/// The portable Windows build keeps its data next to the .exe instead, in "Your Memi data".
+/// The portable Windows build (any copy whose file name contains "portable", or with a portable.txt
+/// beside it) keeps its data next to the .exe instead, in "Your Memi data".
 fn data_dir() -> std::path::PathBuf {
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
             let portable = dir.join("Your Memi data");
-            if portable.is_dir() || dir.join("portable.txt").exists() {
+            let named_portable = exe.file_stem().map(|n| n.to_string_lossy().to_lowercase().contains("portable")).unwrap_or(false);
+            if portable.is_dir() || named_portable || dir.join("portable.txt").exists() {
                 let _ = std::fs::create_dir_all(&portable);
                 return portable;
             }
