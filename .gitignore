@@ -1,0 +1,7 @@
+build/
+.gradle/
+local.properties
+.idea/
+*.iml
+# Your desktop OAuth client (see README > Desktop sync)
+desktop/src/main/resources/google-client.json
