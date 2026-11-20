@@ -28,7 +28,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      MEMI_WEB_CLIENT_ID: ${{ vars.MEMI_WEB_CLIENT_ID }}
+      # A repository variable or a secret: either works (the client ID isn't private).
+      MEMI_WEB_CLIENT_ID: ${{ vars.MEMI_WEB_CLIENT_ID || secrets.MEMI_WEB_CLIENT_ID }}
       HAS_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v4
