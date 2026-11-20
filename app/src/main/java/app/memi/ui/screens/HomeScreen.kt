@@ -253,7 +253,12 @@ private fun Header(
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         if (!asListPane) {
-                            Text(Dates.today().let { "${it.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())} ${Dates.shortDate(it)}" }, style = BentoType.label, color = colors.muted)
+                            // The chip is measured first; with very large text, the date gives way.
+                            Text(
+                                Dates.today().let { "${it.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())} ${Dates.shortDate(it)}" },
+                                style = BentoType.label, color = colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false),
+                            )
                         }
                         SyncChip(sync, onOpenSync)
                     }
