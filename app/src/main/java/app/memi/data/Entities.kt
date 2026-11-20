@@ -1,24 +1,17 @@
 package app.memi.data
 
-import androidx.room.ColumnInfo
-import androidx.room.Entity
-import androidx.room.ForeignKey
-import androidx.room.Index
-import androidx.room.PrimaryKey
 
 /*
- * Every record has two ids: `id`, the row number on this phone, and `uid`, the same on every
- * device, so copies of a Memi can be merged item by item (see Merge.kt). `updatedAt` is when the
- * record last changed anywhere; the newest change wins. Both are filled in by the database
- * (triggers in platform/AndroidDatabase.kt) when left blank, and Repository moves `updatedAt` on
- * with every edit.
+ * What the screens show. Every record has two ids: `id`, the row number on this phone, and `uid`,
+ * the same on every device, so copies of a Memi can be merged item by item. `updatedAt` is when
+ * the record last changed anywhere; the newest change wins. memi-engine (the shared Rust engine,
+ * see Repository) fills both in and keeps them up to date.
  */
 
-@Entity(tableName = "people", indices = [Index("uid")])
 data class Person(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    @ColumnInfo(defaultValue = "''") val uid: String = "",
-    @ColumnInfo(defaultValue = "0") val updatedAt: Long = 0,
+    val id: Long = 0,
+    val uid: String = "",
+    val updatedAt: Long = 0,
     val name: String,
     val relationship: String = "",
     /** Absolute path of the app's private copy of the photo, or null. */
@@ -66,11 +59,10 @@ object Occasion {
 }
 
 /** A category belongs to one person, so everyone can have their own set. */
-@Entity(tableName = "collections", indices = [Index("personId"), Index("uid")])
 data class NoteCollection(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    @ColumnInfo(defaultValue = "''") val uid: String = "",
-    @ColumnInfo(defaultValue = "0") val updatedAt: Long = 0,
+    val id: Long = 0,
+    val uid: String = "",
+    val updatedAt: Long = 0,
     val personId: Long? = null,
     val name: String,
     val kind: String,
@@ -94,22 +86,10 @@ object Outcome {
     const val MISS = 2
 }
 
-@Entity(
-    tableName = "notes",
-    foreignKeys = [
-        ForeignKey(
-            entity = Person::class,
-            parentColumns = ["id"],
-            childColumns = ["personId"],
-            onDelete = ForeignKey.CASCADE,
-        ),
-    ],
-    indices = [Index("personId"), Index("collectionId"), Index("uid")],
-)
 data class Note(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    @ColumnInfo(defaultValue = "''") val uid: String = "",
-    @ColumnInfo(defaultValue = "0") val updatedAt: Long = 0,
+    val id: Long = 0,
+    val uid: String = "",
+    val updatedAt: Long = 0,
     val personId: Long,
     val collectionId: Long,
     val text: String,
@@ -124,12 +104,5 @@ data class Note(
     val doneAt: Long? = null,
     val createdAt: Long = System.currentTimeMillis(),
     /** Your own order within the category (lower comes first). New notes go to the top. */
-    @ColumnInfo(defaultValue = "0") val sortOrder: Long = -mentionedAt,
-)
-
-/** Something deleted, remembered so the deletion reaches your other devices. */
-@Entity(tableName = "tombstones")
-data class Tombstone(
-    @PrimaryKey val uid: String,
-    val deletedAt: Long,
+    val sortOrder: Long = -mentionedAt,
 )

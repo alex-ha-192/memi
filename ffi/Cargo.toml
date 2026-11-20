@@ -1,0 +1,36 @@
+[package]
+name = "memi-ffi"
+version = "0.6.1"
+edition = "2021"
+license = "GPL-3.0-or-later"
+description = "memi-engine for the Android app, through UniFFI"
+publish = false
+
+[lib]
+# cdylib: libmemi_ffi.so in the APK. lib: for uniffi-bindgen and the tests.
+crate-type = ["cdylib", "lib"]
+name = "memi_ffi"
+
+[dependencies]
+memi-engine = { path = "../engine", features = ["sqlite", "native-drive"] }
+uniffi = "0.32"
+anyhow = "1"
+serde_json = "1"
+thiserror = "2"
+
+[[bin]]
+# Generates the Kotlin bindings: cargo run --bin uniffi-bindgen generate --library <lib> --language kotlin
+name = "uniffi-bindgen"
+path = "uniffi-bindgen.rs"
+required-features = ["bindgen"]
+
+[features]
+bindgen = ["uniffi/cli"]
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+# Keep the symbol table: uniffi-bindgen reads the bindings from it. Android strips the .so when packaging.
+strip = "debuginfo"
+panic = "unwind"

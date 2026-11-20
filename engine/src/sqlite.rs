@@ -163,6 +163,16 @@ const NOTES: &str = "SELECT n.*, p.uid AS personUid, c.uid AS collectionUid FROM
     LEFT JOIN people p ON p.id = n.personId LEFT JOIN collections c ON c.id = n.collectionId";
 
 impl SqliteStore {
+    /// Keeps a copy of the database at `path` as it is now, before anything in it changes (for
+    /// the first time a new version opens it). Includes anything still in the write-ahead log.
+    /// Does nothing if there's no database yet or the copy already exists.
+    pub fn copy_untouched(path: &Path, to: &Path) -> Result<()> {
+        if !path.exists() || to.exists() { return Ok(()); }
+        let db = Connection::open(path)?;
+        db.execute("VACUUM INTO ?", [to.to_string_lossy()])?;
+        Ok(())
+    }
+
     pub fn open(path: &Path) -> Result<Self> {
         let db = Connection::open(path)?;
         db.pragma_update(None, "foreign_keys", true)?;
@@ -182,7 +192,53 @@ impl SqliteStore {
     }
 
     /// Creates the tables, and upgrades a database from Memi 0.5 in place.
+    /// Files from the first Android versions (Room versions 1 and 2), upgraded the way Room's
+    /// migrations did: people gain pinning and their own order (1 → 2), then categories become per
+    /// person (2 → 3), each shared category copied to everyone along with their notes in it, and
+    /// Gift ideas building up to the person's birthday.
+    fn upgrade_oldest(&mut self) -> Result<()> {
+        let column = |db: &Connection, t: &str, c: &str| -> Result<bool> {
+            Ok(db.query_row(&format!("SELECT COUNT(*) FROM pragma_table_info('{t}') WHERE name = ?"), [c], |r| r.get::<_, i64>(0))? > 0)
+        };
+        let table = |db: &Connection, t: &str| -> Result<bool> {
+            Ok(db.query_row("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?", [t], |r| r.get::<_, i64>(0))? > 0)
+        };
+        if !table(&self.db, "people")? || !table(&self.db, "collections")? { return Ok(()); }
+        let tx = self.db.transaction()?;
+        if !column(&tx, "people", "pinned")? {
+            tx.execute_batch("ALTER TABLE people ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;
+                              ALTER TABLE people ADD COLUMN sortOrder INTEGER NOT NULL DEFAULT 0;")?;
+        }
+        if !column(&tx, "collections", "personId")? {
+            tx.execute_batch("ALTER TABLE collections ADD COLUMN personId INTEGER;
+                              ALTER TABLE collections ADD COLUMN occasion TEXT NOT NULL DEFAULT 'NONE';
+                              ALTER TABLE collections ADD COLUMN occasionDay INTEGER;
+                              ALTER TABLE collections ADD COLUMN yearly INTEGER NOT NULL DEFAULT 0;
+                              CREATE INDEX IF NOT EXISTS index_collections_personId ON collections (personId);
+                              UPDATE collections SET occasion = 'BIRTHDAY' WHERE kind = 'GIFT';")?;
+            let shared: Vec<(i64, String, String, i64, i64, String)> = tx
+                .prepare("SELECT id, name, kind, slot, sortOrder, occasion FROM collections WHERE personId IS NULL")?
+                .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?)))?
+                .collect::<rusqlite::Result<_>>()?;
+            let people: Vec<i64> = tx.prepare("SELECT id FROM people")?.query_map([], |r| r.get(0))?.collect::<rusqlite::Result<_>>()?;
+            for p in &people {
+                for (id, name, kind, slot, order, occasion) in &shared {
+                    tx.execute(
+                        "INSERT INTO collections (personId, name, kind, slot, sortOrder, occasion, yearly) VALUES (?, ?, ?, ?, ?, ?, 0)",
+                        params![p, name, kind, slot, order, occasion],
+                    )?;
+                    let new_id = tx.last_insert_rowid();
+                    tx.execute("UPDATE notes SET collectionId = ? WHERE personId = ? AND collectionId = ?", params![new_id, p, id])?;
+                }
+            }
+            tx.execute("DELETE FROM collections WHERE personId IS NULL", [])?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
     fn prepare(&mut self) -> Result<()> {
+        self.upgrade_oldest()?;
         self.db.execute_batch(SCHEMA)?;
         let version: i64 = self.db.pragma_query_value(None, "user_version", |r| r.get(0))?;
         // Room's files carry Room's own version numbers (3 and 4), so check the columns themselves.

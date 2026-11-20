@@ -255,3 +255,38 @@ fn an_android_room_database_from_0_5_opens_with_the_shared_uids() {
     assert_eq!(s.notes[0].sort_order, -1700000000123);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn the_first_android_databases_upgrade_like_room_did() {
+    // Room version 1 (the first Android releases): no pinning, and categories shared by everyone.
+    let dir = std::env::temp_dir().join(format!("memi-room1-test-{}", new_uid()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("memi.db");
+    {
+        let db = rusqlite::Connection::open(&path).unwrap();
+        db.execute_batch(r#"
+            CREATE TABLE room_master_table (id INTEGER PRIMARY KEY, identity_hash TEXT);
+            CREATE TABLE people (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, relationship TEXT NOT NULL, photoPath TEXT, birthdayMonth INTEGER, birthdayDay INTEGER, birthYear INTEGER, toneIndex INTEGER NOT NULL, createdAt INTEGER NOT NULL);
+            CREATE TABLE collections (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, kind TEXT NOT NULL, slot INTEGER NOT NULL, sortOrder INTEGER NOT NULL);
+            CREATE TABLE notes (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, personId INTEGER NOT NULL, collectionId INTEGER NOT NULL, text TEXT NOT NULL, mentionedAt INTEGER NOT NULL, firstMentionedAt INTEGER NOT NULL, mentionCount INTEGER NOT NULL, dueAt INTEGER, status INTEGER NOT NULL, outcome INTEGER NOT NULL, doneAt INTEGER, createdAt INTEGER NOT NULL, FOREIGN KEY(personId) REFERENCES people(id) ON UPDATE NO ACTION ON DELETE CASCADE);
+            INSERT INTO people (id, name, relationship, toneIndex, createdAt) VALUES (1, 'Maya', 'Sister', 0, 1700000000000), (2, 'Sam', 'Friend', 1, 1700000001000);
+            INSERT INTO collections (id, name, kind, slot, sortOrder) VALUES (1, 'Gift ideas', 'GIFT', 0, 0), (2, 'Plans', 'PLAN', 1, 1), (3, 'Notes', 'NOTE', 2, 2);
+            INSERT INTO notes (personId, collectionId, text, mentionedAt, firstMentionedAt, mentionCount, status, outcome, createdAt) VALUES
+                (1, 1, 'Mug', 1700000000100, 1700000000100, 1, 0, 0, 1700000000100),
+                (2, 3, 'Black coffee', 1700000000200, 1700000000200, 1, 0, 0, 1700000000200);
+            PRAGMA user_version = 1;
+        "#).unwrap();
+    }
+    let s = memi_engine::sqlite::SqliteStore::open(&path).unwrap().load();
+    assert_eq!(s.people.len(), 2);
+    assert_eq!(s.collections.len(), 6, "each person gets their own three categories");
+    let maya = s.people.iter().find(|p| p.name == "Maya").unwrap();
+    let gifts = s.collections.iter().find(|c| c.person_uid.as_deref() == Some(maya.uid.as_str()) && c.kind == "GIFT").unwrap();
+    assert_eq!(gifts.occasion, "BIRTHDAY");
+    let mug = s.notes.iter().find(|n| n.text == "Mug").unwrap();
+    assert_eq!(mug.collection_uid, gifts.uid, "notes move to the person's own copy");
+    let coffee = s.notes.iter().find(|n| n.text == "Black coffee").unwrap();
+    let sams_notes = s.collections.iter().find(|c| c.uid == coffee.collection_uid).unwrap();
+    assert_eq!((sams_notes.name.as_str(), sams_notes.person_uid.as_deref()), ("Notes", Some(coffee.person_uid.as_str())));
+    let _ = std::fs::remove_dir_all(dir);
+}

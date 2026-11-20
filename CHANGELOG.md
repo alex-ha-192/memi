@@ -10,6 +10,8 @@ A release you shouldn't notice: nothing looks or works differently. Underneath, 
 - New `memi-engine` crate: the data and every edit, saving, photos, undo and sync, shared by the Android, desktop and web apps. Each app keeps its own screens (Compose, GPUI, Leptos) and only the small parts that have to differ: Google sign-in, where the key is kept, notifications, photo picking.
 - The web app runs on the engine. It keeps everything already saved in your browser.
 - The desktop app runs on the engine. It opens its existing `memi.db` in place and writes only the rows that changed.
+- The Android app runs on the engine, through a small bridge (`ffi/`, generated with UniFFI). Its screens are unchanged. Room and the Kotlin copies of merging, backups, encryption, pairing and the Drive client are gone.
+- Android opens its existing `memi.db` in place, including databases from the very first versions. The first time, it keeps an untouched copy as `memi-0.6.0.db`. Sync settings move from Android's preferences to `sync.json`, like the desktop's.
 - Desktop: Google sign-in uses the `oauth2` crate (PKCE, state check, token refresh and revoke) instead of hand-written requests.
 - One SQLite store for Android and desktop. It opens the Android app's existing database in place, including files from 0.5.
 - One Google Drive client and one sync implementation, tested end to end with two devices joining, editing at once, deleting and starting over.

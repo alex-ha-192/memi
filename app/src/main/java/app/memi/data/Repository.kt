@@ -1,179 +1,151 @@
 package app.memi.data
 
-import app.memi.platform.PlatformPhotos
+import app.memi.engine.Engine
+import app.memi.engine.MemiException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withContext
+import app.memi.engine.Collection as EngineCollection
+import app.memi.engine.Note as EngineNote
+import app.memi.engine.Person as EnginePerson
 
-class Repository(private val db: AppDatabase) {
+/**
+ * The screens' way into memi-engine, the Rust engine every Memi app shares (ffi/ in the
+ * repository). The engine does the edits (with the same rules on every device), saves them to
+ * memi.db, and keeps the edit times and deletions sync needs. This class turns its records into
+ * the screens' own and publishes them as flows.
+ */
+class Repository(private val engine: Engine) {
 
-    /** Every edit moves the record's edit time on, so it wins over older copies when merging. */
-    private fun now() = System.currentTimeMillis()
+    private val _people = MutableStateFlow<List<Person>>(emptyList())
+    private val _collections = MutableStateFlow<List<NoteCollection>>(emptyList())
+    private val _notes = MutableStateFlow<List<Note>>(emptyList())
+    private var seen: ULong? = null
 
-    val people: Flow<List<Person>> = db.people().observeAll()
-    val collections: Flow<List<NoteCollection>> = db.collections().observeAll()
-    val notes: Flow<List<Note>> = db.notes().observeAll()
+    val people: Flow<List<Person>> = _people.asStateFlow()
+    val collections: Flow<List<NoteCollection>> = _collections.asStateFlow()
+    val notes: Flow<List<Note>> = _notes.asStateFlow()
+
+    /** Called after every edit made here (not after changes from your other devices). */
+    var onEdit: (() -> Unit)? = null
+
+    init { refresh() }
+
+    /** Reads everything again if anything changed, here or from another device. */
+    @Synchronized
+    fun refresh() {
+        if (engine.version() == seen) return
+        val all = engine.everything()
+        seen = all.version
+        _people.value = all.people.map { it.toPerson() }
+        _collections.value = all.collections.map { it.toCollection() }
+        _notes.value = all.notes.map { it.toNote() }
+    }
+
+    private suspend fun <T> edit(block: Engine.() -> T): T = withContext(Dispatchers.IO) {
+        val result = engine.block()
+        refresh()
+        onEdit?.invoke()
+        result
+    }
+
+    /** An edit that returns nothing. Something already gone (removed on another device a moment ago) is left as it is. */
+    private suspend fun change(block: Engine.() -> Unit) = edit {
+        try { block() } catch (_: MemiException) {}
+    }
 
     // People
 
     /** Adds someone with the three starter categories; Gift ideas builds up to their birthday. */
-    suspend fun addPerson(person: Person): Long {
-        val all = db.people().all()
-        val id = db.people().insert(
-            person.copy(toneIndex = all.size % 8, sortOrder = (all.maxOfOrNull { it.sortOrder } ?: 0) + 1)
-        )
-        db.collections().insertAll(
-            listOf(
-                NoteCollection(personId = id, name = "Gift ideas", kind = Kind.GIFT, slot = Slot.GIFT, sortOrder = 0, occasion = Occasion.BIRTHDAY),
-                NoteCollection(personId = id, name = "Plans", kind = Kind.PLAN, slot = Slot.PLAN, sortOrder = 1),
-                NoteCollection(personId = id, name = "Notes", kind = Kind.NOTE, slot = Slot.NOTE, sortOrder = 2),
-            )
-        )
-        return id
-    }
+    suspend fun addPerson(person: Person): Long = edit { addPerson(person.toEngine()) }
 
-    suspend fun updatePerson(person: Person) = db.people().update(person.copy(updatedAt = now()))
+    suspend fun updatePerson(person: Person) = change { updatePerson(person.toEngine()) }
 
-    suspend fun deletePerson(person: Person) {
-        PlatformPhotos.delete(person.photoPath)
-        db.collections().deleteForPerson(person.id)
-        db.people().delete(person)
-    }
+    /** Removes someone, everything about them, and their photo. */
+    suspend fun deletePerson(person: Person) = change { deletePerson(person.id) }
 
-    suspend fun setPinned(person: Person, pinned: Boolean) {
-        val all = db.people().all()
-        val endOfGroup = (all.filter { it.pinned == pinned }.maxOfOrNull { it.sortOrder } ?: 0) + 1
-        db.people().update(person.copy(pinned = pinned, sortOrder = endOfGroup, updatedAt = now()))
-    }
+    suspend fun setPinned(person: Person, pinned: Boolean) = change { setPinned(person.id, pinned) }
 
     /** Moves someone one place earlier (-1) or later (+1) among the pinned or unpinned group. */
-    suspend fun movePerson(person: Person, delta: Int) {
-        val all = db.people().all()
-        val group = all.filter { it.pinned == person.pinned }.toMutableList()
-        val i = group.indexOfFirst { it.id == person.id }
-        val j = i + delta
-        if (i < 0 || j !in group.indices) return
-        group.add(j, group.removeAt(i))
-        db.people().updateAll(group.mapIndexed { index, p -> p.copy(sortOrder = index, updatedAt = now()) })
-    }
+    suspend fun movePerson(person: Person, delta: Int) = change { movePerson(person.id, delta) }
 
+    /** Drag and drop: puts someone in [target]'s place (joining the pinned or unpinned group they're dropped into). */
+    suspend fun placePerson(id: Long, target: Long) = change { placePerson(id, target) }
 
-    /**
-     * Drag and drop: puts someone in [target]'s place (joining the pinned or unpinned group they're
-     * dropped into). Same rules as the desktop's Store::place_person.
-     */
-    suspend fun placePerson(id: Long, target: Long) {
-        val all = db.people().all()
-        val t = all.firstOrNull { it.id == target } ?: return
-        val me = all.firstOrNull { it.id == id } ?: return
-        val inGroup = all.filter { it.pinned == t.pinned }
-        val group = inGroup.filter { it.id != id }.toMutableList()
-        var at = group.indexOfFirst { it.id == target }.let { if (it < 0) group.size else it }
-        val old = inGroup.indexOfFirst { it.id == id }
-        // Dropping onto someone further down puts you after them; further up, before them.
-        if (old in 0..at) at += 1
-        group.add(at.coerceAtMost(group.size), me)
-        val now = now()
-        db.people().updateAll(group.mapIndexedNotNull { i, p ->
-            if (p.sortOrder == i && p.pinned == t.pinned) null else p.copy(sortOrder = i, pinned = t.pinned, updatedAt = now)
-        })
-    }
-
-    fun deletePhotoFile(path: String?) = PlatformPhotos.delete(path)
+    fun deletePhotoFile(path: String?) { if (path != null) engine.deletePhotoFile(path) }
 
     // Notes
 
-    suspend fun addNote(personId: Long, collectionId: Long, text: String, dueAt: Long? = null): Long {
-        val now = System.currentTimeMillis()
-        return db.notes().insert(
-            Note(personId = personId, collectionId = collectionId, text = text.trim(), mentionedAt = now, firstMentionedAt = now, dueAt = dueAt, sortOrder = -now)
-        )
-    }
+    suspend fun addNote(personId: Long, collectionId: Long, text: String, dueAt: Long? = null): Long =
+        edit { addNote(personId, collectionId, text, dueAt) }
 
     /** Drag and drop: puts a note in [target]'s place within their category. */
-    suspend fun placeNote(id: Long, target: Long) {
-        val all = db.notes().all()
-        val me = all.firstOrNull { it.id == id } ?: return
-        val t = all.firstOrNull { it.id == target } ?: return
-        if (me.collectionId != t.collectionId) return
-        val list = all.filter { it.collectionId == t.collectionId && it.status == t.status }
-            .sortedWith(compareBy({ it.sortOrder }, { -it.mentionedAt }))
-        val now = now()
-        db.notes().updateAll(place(list, { it.id }, id, target).mapIndexedNotNull { i, n ->
-            if (n.sortOrder == i.toLong()) null else n.copy(sortOrder = i.toLong(), updatedAt = now)
-        })
-    }
+    suspend fun placeNote(id: Long, target: Long) = change { placeNote(id, target) }
 
-    suspend fun updateNote(note: Note) = db.notes().update(note.copy(updatedAt = now()))
+    suspend fun updateNote(note: Note) = change { updateNote(note.toEngine()) }
 
-    suspend fun deleteNote(note: Note) = db.notes().delete(note)
+    suspend fun deleteNote(note: Note) = change { deleteNote(note.id) }
 
-    suspend fun deleteNoteIds(ids: List<Long>) = db.notes().deleteIds(ids)
+    suspend fun deleteNoteIds(ids: List<Long>) = change { ids.forEach { runCatching { deleteNote(it) } } }
 
-    /** Undo: puts a deleted note back, as a new change so it wins over the deletion everywhere. */
-    suspend fun restoreNote(note: Note) = db.notes().insert(note.copy(updatedAt = 0))
+    /** Undo: puts a deleted note back, the same note on every device. */
+    suspend fun restoreNote(note: Note) = change { restoreNote(note.toEngine()) }
 
-    suspend fun markDone(note: Note, outcome: Int) = db.notes().update(
-        note.copy(status = Status.DONE, outcome = outcome, doneAt = note.doneAt ?: System.currentTimeMillis(), updatedAt = now())
-    )
+    suspend fun markDone(note: Note, outcome: Int) = change { markDone(note.id, outcome) }
 
-    suspend fun reopen(note: Note) = db.notes().update(
-        note.copy(status = Status.OPEN, outcome = Outcome.NONE, doneAt = null, updatedAt = now())
-    )
+    suspend fun reopen(note: Note) = change { reopen(note.id) }
 
     // Categories (each belongs to one person)
 
-    suspend fun addCollection(personId: Long, name: String, occasion: String, occasionDay: Long?, yearly: Boolean): Long {
-        val mine = db.collections().forPerson(personId)
-        val usedSlots = mine.map { it.slot }.toSet()
-        val slot = (0 until Slot.COUNT).firstOrNull { it !in usedSlots } ?: (mine.size % Slot.COUNT)
-        return db.collections().insert(
-            NoteCollection(
-                personId = personId, name = name.trim(), kind = Kind.CUSTOM, slot = slot,
-                sortOrder = (mine.maxOfOrNull { it.sortOrder } ?: 0) + 1,
-                occasion = occasion, occasionDay = occasionDay, yearly = yearly,
-            )
-        )
-    }
+    suspend fun addCollection(personId: Long, name: String, occasion: String, occasionDay: Long?, yearly: Boolean): Long =
+        edit { addCollection(personId, name.trim(), occasion, occasionDay, yearly) }
 
-    suspend fun updateCollection(collection: NoteCollection) = db.collections().update(collection.copy(name = collection.name.trim(), updatedAt = now()))
+    suspend fun updateCollection(collection: NoteCollection) = change { updateCollection(collection.copy(name = collection.name.trim()).toEngine()) }
 
     /** Moves a category one place earlier (-1) or later (+1) among that person's categories. */
-    suspend fun moveCollection(collection: NoteCollection, delta: Int) {
-        val pid = collection.personId ?: return
-        val mine = db.collections().forPerson(pid).toMutableList()
-        val i = mine.indexOfFirst { it.id == collection.id }
-        val j = i + delta
-        if (i < 0 || j !in mine.indices) return
-        mine.add(j, mine.removeAt(i))
-        db.collections().updateAll(mine.mapIndexed { index, c -> c.copy(sortOrder = index, updatedAt = now()) })
-    }
+    suspend fun moveCollection(collection: NoteCollection, delta: Int) = change { moveCollection(collection.id, delta) }
 
     /** Drag and drop: puts a category in [target]'s place among that person's categories. */
-    suspend fun placeCollection(id: Long, target: Long) {
-        val t = db.collections().all().firstOrNull { it.id == target } ?: return
-        val pid = t.personId ?: return
-        val mine = db.collections().forPerson(pid)
-        if (mine.none { it.id == id }) return
-        val now = now()
-        db.collections().updateAll(place(mine, { it.id }, id, target).mapIndexedNotNull { i, c ->
-            if (c.sortOrder == i) null else c.copy(sortOrder = i, updatedAt = now)
-        })
-    }
-
-    /** [list] with [id] moved to where [target] is. */
-    private fun <T> place(list: List<T>, key: (T) -> Long, id: Long, target: Long): List<T> {
-        val from = list.indexOfFirst { key(it) == id }
-        val to = list.indexOfFirst { key(it) == target }
-        if (from < 0 || to < 0) return list
-        return list.toMutableList().apply { add(to, removeAt(from)) }
-    }
+    suspend fun placeCollection(id: Long, target: Long) = change { placeCollection(id, target) }
 
     /** Removes a category. Its notes move to another of the person's categories so nothing is lost. */
-    suspend fun deleteCollection(collection: NoteCollection) {
-        val pid = collection.personId
-        val others = if (pid != null) db.collections().forPerson(pid).filter { it.id != collection.id } else emptyList()
-        val target = others.firstOrNull { it.kind == Kind.NOTE } ?: others.firstOrNull()
-        if (target != null) db.notes().moveAll(collection.id, target.id)
-        else db.notes().all().filter { it.collectionId == collection.id }.forEach { db.notes().delete(it) }
-        db.collections().delete(collection)
-    }
+    suspend fun deleteCollection(collection: NoteCollection) = change { deleteCollection(collection.id) }
 }
+
+// --- Between the engine's records and the screens' ---------------------------------------------------
+
+private fun EnginePerson.toPerson() = Person(
+    id = id, uid = uid, updatedAt = updatedAt, name = name, relationship = relationship, photoPath = photoPath,
+    birthdayMonth = birthdayMonth, birthdayDay = birthdayDay, birthYear = birthYear, toneIndex = toneIndex,
+    pinned = pinned, sortOrder = sortOrder, createdAt = createdAt,
+)
+
+private fun Person.toEngine() = EnginePerson(
+    id = id, uid = uid, updatedAt = updatedAt, name = name, relationship = relationship, photoPath = photoPath,
+    birthdayMonth = birthdayMonth, birthdayDay = birthdayDay, birthYear = birthYear, toneIndex = toneIndex,
+    pinned = pinned, sortOrder = sortOrder, createdAt = createdAt,
+)
+
+private fun EngineCollection.toCollection() = NoteCollection(
+    id = id, uid = uid, updatedAt = updatedAt, personId = personId, name = name, kind = kind, slot = slot,
+    sortOrder = sortOrder, occasion = occasion, occasionDay = occasionDay, yearly = yearly,
+)
+
+private fun NoteCollection.toEngine() = EngineCollection(
+    id = id, uid = uid, updatedAt = updatedAt, personId = personId, name = name, kind = kind, slot = slot,
+    sortOrder = sortOrder, occasion = occasion, occasionDay = occasionDay, yearly = yearly,
+)
+
+private fun EngineNote.toNote() = Note(
+    id = id, uid = uid, updatedAt = updatedAt, personId = personId, collectionId = collectionId, text = text,
+    mentionedAt = mentionedAt, firstMentionedAt = firstMentionedAt, mentionCount = mentionCount, dueAt = dueAt,
+    status = status, outcome = outcome, doneAt = doneAt, createdAt = createdAt, sortOrder = sortOrder,
+)
+
+private fun Note.toEngine() = EngineNote(
+    id = id, uid = uid, updatedAt = updatedAt, personId = personId, collectionId = collectionId, text = text,
+    mentionedAt = mentionedAt, firstMentionedAt = firstMentionedAt, mentionCount = mentionCount, dueAt = dueAt,
+    status = status, outcome = outcome, doneAt = doneAt, createdAt = createdAt, sortOrder = sortOrder,
+)

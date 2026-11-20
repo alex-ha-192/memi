@@ -1,21 +1,18 @@
 [versions]
 agp = "8.7.3"
 kotlin = "2.1.0"
-ksp = "2.1.0-1.0.29"
 composeBom = "2024.12.01"
 coreKtx = "1.15.0"
 activityCompose = "1.9.3"
 lifecycle = "2.8.7"
-room = "2.6.1"
 datastore = "1.1.1"
 coil = "2.7.0"
 profileinstaller = "1.4.1"
 exifinterface = "1.3.7"
+jna = "5.17.0"
 
 [libraries]
 junit = { group = "junit", name = "junit", version = "4.13.2" }
-# The real org.json for unit tests (Android's own copy is only a stub off-device).
-json = { group = "org.json", name = "json", version = "20240303" }
 androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 androidx-compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version = "1.2.1" }
@@ -34,11 +31,10 @@ androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "u
 androidx-compose-foundation = { group = "androidx.compose.foundation", name = "foundation" }
 androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
 androidx-compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
-androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
-androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
-androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
+# Kotlin's bridge to memi-engine (the bindings UniFFI generates use JNA).
+jna = { group = "net.java.dev.jna", name = "jna", version.ref = "jna" }
 androidx-exifinterface = { group = "androidx.exifinterface", name = "exifinterface", version.ref = "exifinterface" }
 androidx-profileinstaller = { group = "androidx.profileinstaller", name = "profileinstaller", version.ref = "profileinstaller" }
 
@@ -47,4 +43,3 @@ androidx-profileinstaller = { group = "androidx.profileinstaller", name = "profi
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
-ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }

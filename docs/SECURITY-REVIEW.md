@@ -13,7 +13,7 @@ The threat model hasn't changed. Your Memi lives on your devices and, if you tur
 | Elliptic-curve arithmetic (pairing) | `p256` 0.13, which uses `crypto-bigint` 0.5 with timing variability in operations meant to be constant-time ([RUSTSEC-2026-0387](https://rustsec.org/advisories/RUSTSEC-2026-0387)) | `p256` 0.14 (`crypto-bigint` 0.7.11), keys from the OS via the crate's own `Generate` | Fixes a known advisory |
 | AES-GCM, HKDF, SHA-2 | `aes-gcm` 0.10, `hkdf` 0.12, `sha2` 0.10 | `aes-gcm` 0.11, `hkdf` 0.13, `sha2` 0.11 (current RustCrypto releases) | Stay on maintained releases |
 | SQLite (Android and desktop) | `rusqlite` 0.32 (bundled SQLite with a CVE, [RUSTSEC-2026-0459](https://rustsec.org/advisories/RUSTSEC-2026-0459)) | `rusqlite` 0.43 | Fixes a known advisory |
-| Android encryption, pairing and the backup format | A Kotlin copy using `javax.crypto` | The shared Rust engine (RustCrypto), once Android moves onto it in 0.6.1 | One implementation to review instead of two |
+| Android encryption, pairing, the backup format and Google Drive | A Kotlin copy using `javax.crypto` and `HttpURLConnection` | The shared Rust engine (RustCrypto, `ureq` with `rustls`), reached from Kotlin through [UniFFI](https://mozilla.github.io/uniffi-rs/) | One implementation to review instead of two |
 | Watching for new advisories | None | `cargo audit` in CI on every dependency change and weekly; Dependabot for Rust, Gradle and GitHub Actions | Advisories appear after code is written |
 | Unused crypto dependencies | The desktop app still depended on its own `p256`, `aes-gcm`, `hkdf`, `sha2`, `rand` and `flate2` | Removed; all of that lives in `memi-core` | Fewer things to keep patched |
 

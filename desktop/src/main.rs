@@ -10,7 +10,6 @@
 // The data model, date rules and Home insights are shared with the web app.
 pub use memi_core::{dates, insights, model};
 mod photos;
-mod edits;
 mod platform;
 mod sync;
 mod ui;

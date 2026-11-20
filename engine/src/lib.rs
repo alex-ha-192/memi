@@ -5,6 +5,7 @@
 //! make every change through it.
 
 pub mod data;
+pub mod edits;
 pub mod memi;
 pub mod sync;
 #[cfg(feature = "native-drive")]

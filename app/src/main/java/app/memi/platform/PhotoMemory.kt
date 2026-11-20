@@ -13,7 +13,6 @@ import androidx.compose.ui.graphics.ImageBitmap
  * - PlatformSystemBars: status bar icon colours (Android only)
  * - JakartaFamily and mascotPainter: fonts and the elephant, from each app's resources
  * - rememberGoogleSignIn: Google's account picker (Android) or a browser sign-in (desktop)
- * - AppDatabase.inTransaction: one database transaction
  *
  * This file is the one shared piece: a small in-memory cache, so photos don't decode again every
  * time a card scrolls back into view.

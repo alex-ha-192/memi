@@ -1,10 +1,10 @@
-//! The edits the desktop's screens make, by row id, carried out by memi-engine (which works by uid,
-//! stamps edit times and keeps deletions for sync). Every call comes through MemiView::change, so
-//! each one is saved and queued for sync.
+//! Edits by row id, for apps whose screens work with ids (desktop and Android). Each one is carried
+//! out by [Data], which works by uid, stamps edit times and keeps deletions for sync. Use them
+//! inside [crate::Memi::change], so every edit is saved and queued for sync.
 
 use anyhow::{anyhow, Result};
-use memi_engine::core::model::*;
-use memi_engine::Data;
+use crate::Data;
+use memi_core::model::*;
 
 pub struct Edits<'a> {
     pub d: &'a mut Data,

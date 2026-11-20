@@ -1,9 +1,9 @@
 # Keeps every dependency up to date, including security fixes: the Rust crates (shared core,
-# engine, desktop, web), Android's Gradle libraries and the CI actions.
+# engine, Android bridge, desktop, web), Android's Gradle libraries and the CI actions.
 version: 2
 updates:
   - package-ecosystem: cargo
-    directories: ["/core", "/engine", "/desktop", "/web"]
+    directories: ["/core", "/engine", "/ffi", "/desktop", "/web"]
     schedule: { interval: weekly }
     groups:
       rust: { patterns: ["*"] }

@@ -6,5 +6,7 @@ local.properties
 desktop/target/
 desktop/vendor/
 core/target/
+engine/target/
+ffi/target/
 web/target/
 web/dist/

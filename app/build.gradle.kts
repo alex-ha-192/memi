@@ -2,7 +2,6 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.ksp)
 }
 
 android {
@@ -60,9 +59,45 @@ android {
     }
 }
 
-ksp {
-    arg("room.schemaLocation", "$projectDir/schemas")
+// --- memi-engine (Rust, in ffi/ and engine/) --------------------------------------------------------
+//
+// Below the screens, the app runs memi-engine, the same Rust engine as the desktop and web apps.
+// Gradle builds it for each Android ABI with cargo-ndk (`cargo install cargo-ndk`, plus the
+// Android NDK and `rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android`),
+// then generates its Kotlin bindings (package app.memi.engine) with UniFFI.
+
+val rustDir = rootProject.file("ffi")
+val rustJniLibs = layout.buildDirectory.dir("rust/jniLibs")
+val rustBindings = layout.buildDirectory.dir("generated/uniffi")
+val rustAbis = listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+
+val buildRust by tasks.registering(Exec::class) {
+    description = "Builds memi-engine (ffi/) for Android with cargo-ndk."
+    workingDir = rustDir
+    inputs.files(fileTree(rootProject.file("ffi")) { exclude("target/**") }, fileTree(rootProject.file("engine")) { exclude("target/**") }, fileTree(rootProject.file("core")) { exclude("target/**") })
+    outputs.dir(rustJniLibs)
+    val out = rustJniLibs.get().asFile
+    commandLine(listOf("cargo", "ndk") + rustAbis.flatMap { listOf("-t", it) } + listOf("--platform", "26", "-o", out.path, "build", "--release"))
 }
+
+val rustKotlin by tasks.registering(Exec::class) {
+    description = "Generates memi-engine's Kotlin bindings with UniFFI."
+    dependsOn(buildRust)
+    workingDir = rustDir
+    inputs.dir(rustJniLibs)
+    outputs.dir(rustBindings)
+    val lib = rustJniLibs.get().file("x86_64/libmemi_ffi.so").asFile
+    val out = rustBindings.get().asFile
+    commandLine("cargo", "run", "--features", "bindgen", "--bin", "uniffi-bindgen", "--",
+        "generate", "--library", lib.path, "--language", "kotlin", "--out-dir", out.path, "--no-format")
+}
+
+android.sourceSets.getByName("main") {
+    jniLibs.srcDir(rustJniLibs.get().asFile)
+    java.srcDir(rustBindings.get().asFile)
+}
+
+tasks.named("preBuild") { dependsOn(rustKotlin) }
 
 dependencies {
     implementation(libs.androidx.core.ktx)
@@ -78,9 +113,8 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
-    implementation(libs.androidx.room.runtime)
-    implementation(libs.androidx.room.ktx)
-    ksp(libs.androidx.room.compiler)
+    // memi-engine's bindings call into libmemi_ffi.so through JNA.
+    implementation(libs.jna) { artifact { type = "aar" } }
 
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.play.services.auth)
@@ -91,9 +125,8 @@ dependencies {
     // Installs Compose's ahead-of-time profiles on release builds, which makes scrolling and animations much smoother.
     implementation(libs.androidx.profileinstaller)
 
-    // Unit tests for merging and backups (test/), run in CI before every build.
+    // Merging, backups and encryption are tested in Rust (engine/tests, core); with ffi/tests checking the Kotlin bindings.
     testImplementation(libs.junit)
-    testImplementation(libs.json)
 
     // Screenshot tour (androidTest/ScreenTour.kt), run on an emulator in CI.
     androidTestImplementation(platform(libs.androidx.compose.bom))

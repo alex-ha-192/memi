@@ -4,7 +4,7 @@
 use super::theme::{self, Colors, FONT};
 
 use crate::model::*;
-use crate::edits::Edits;
+use memi_engine::edits::Edits;
 use crate::sync::{self, Problem};
 use crate::{dates, photos};
 use chrono::NaiveDate;
