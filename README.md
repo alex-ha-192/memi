@@ -115,3 +115,10 @@ desktop/src/main/kotlin/app/memi/
 - A true multi-device merge (sync is last-writer-wins today)
 - Reminders before birthdays
 - Drag-to-reorder (people and categories move one place at a time from their menus for now)
+
+## Licence
+
+Memi is free software under the **GNU General Public License v3.0**; see [`LICENSE`](LICENSE). Bundled third-party pieces keep their own licences, both compatible with the GPL:
+
+- Plus Jakarta Sans font: SIL Open Font License 1.1 (`licenses/plus-jakarta-sans-OFL.txt`)
+- Elephant icon and mascot, from Microsoft Fluent Emoji: MIT (`licenses/fluent-emoji-MIT.txt`)
