@@ -4,18 +4,14 @@ Every release of Memi, newest first. The format follows [Keep a Changelog](https
 
 ## [Unreleased] — 0.6.2
 
+A new device now asks whether you've used Memi before, Memi has a brighter icon and is called Memi everywhere, and underneath, every app runs on one shared engine. (0.6.1, the engine on its own, was never released; its changes are below.)
+
 ### Added
 - A first-launch question on a new device: "Have you used Memi before?" Yes signs in to Google, and another of your devices lets this one in with the six-digit code. No, I'm new offers Sync with Google or Just this phone (or computer, or browser). Both answers carry the same weight, nothing is chosen for you, and it's never asked again. Sync stays in Settings. Existing installs never see it.
 
 ### Changed
 - The app is called Memi everywhere you see it: the launcher, window titles, the Start menu, the installer, the Linux app menu, the Sync screens and messages. Download file names, app ids and data folders stay the same, so updates and everything you've saved carry over. Google's sign-in screen still says Your Memi for now.
 - A brighter icon: the same elephant on the four category colours (peach, mint, butter and lilac), on every platform and on the website. The web app can now be installed with a proper icon.
-
-## [0.6.1] — 2026-11-20
-
-A release you shouldn't notice: nothing looks or works differently. Underneath, every app now runs on one shared engine.
-
-### Changed
 - New `memi-engine` crate: the data and every edit, saving, photos, undo and sync, shared by the Android, desktop and web apps. Each app keeps its own screens (Compose, GPUI, Leptos) and only the small parts that have to differ: Google sign-in, where the key is kept, notifications, photo picking.
 - The web app runs on the engine. It keeps everything already saved in your browser.
 - The desktop app runs on the engine. It opens its existing `memi.db` in place and writes only the rows that changed.
