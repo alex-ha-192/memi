@@ -94,11 +94,20 @@ Under **Settings › Secrets and variables › Actions**:
 | `ANDROID_KEY_PASSWORD` | The key's password |
 | `CLOUDFLARE_API_TOKEN` | A Cloudflare API token with Account › Cloudflare Pages › Edit, for the website |
 | `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare account ID (dashboard sidebar) |
+| `SIGNPATH_API_TOKEN` | API token of a SignPath user who can submit signing requests (Windows signing, below) |
 | `FLATHUB_TOKEN` | A GitHub token that can push to `flathub/app.yourmemi.YourMemi` (after the app is accepted on Flathub) |
 
 Android only installs an update signed with the same key as the installed app, and Google sign-in only works for keys registered in Google Cloud. Pick the signing key once and keep it safe. To get a keystore as base64: `base64 -w0 my.keystore` (Linux) or `[Convert]::ToBase64String([IO.File]::ReadAllBytes("my.keystore"))` (PowerShell). Each build prints the SHA-1 it was signed with.
 
 Without the Android secrets, CI signs with a throwaway key: the APK runs, but it won't update an installed copy and Google sign-in won't work.
+
+### Windows code signing
+
+Windows releases are signed through [SignPath Foundation](https://signpath.org) (free for open-source projects; the certificate names SignPath Foundation as publisher). The policy SignPath requires is at `website/code-signing/`.
+
+- SignPath project slug `your-memi`, signing policy `release-signing`, artifact configuration from `desktop/packaging/signpath-artifact-configuration.xml`.
+- Repository **variable** `SIGNPATH_ORGANIZATION_ID` (Settings › Secrets and variables › Actions › Variables), and the secret `SIGNPATH_API_TOKEN`. `SIGNPATH_PROJECT_SLUG` and `SIGNPATH_SIGNING_POLICY_SLUG` variables override the slugs if you named them differently.
+- Only tagged releases are signed. The Windows job waits up to two hours for you to approve the request in SignPath, then puts the signed .msi in the release.
 
 ### Flathub
 

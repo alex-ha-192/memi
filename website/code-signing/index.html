@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Code signing policy · Your Memi</title>
+  <meta name="description" content="How Your Memi's Windows installer is signed, who can approve a release, and how to uninstall.">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self'; style-src 'self'; script-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#F4F3F8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#15141E" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="/img/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="/img/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/theme.js"></script>
+</head>
+<body>
+  <div class="wrap">
+    <header class="site">
+      <a class="brand" href="/"><img src="/img/icon.svg" alt="" width="36" height="36">Your Memi</a>
+      <nav class="site" aria-label="Main">
+        <a href="/#how" class="hide-small">How it works</a>
+        <a href="/privacy/">Privacy</a>
+        <a href="/#download">Download</a>
+        <button class="toggle" type="button" aria-label="Switch theme">
+          <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+          <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg>
+        </button>
+      </nav>
+    </header>
+
+    <main class="doc">
+      <h1>Code signing policy</h1>
+      <p class="updated">Last updated 20 November 2026</p>
+
+      <div class="summary">
+        <p>Free code signing provided by <a href="https://signpath.io">SignPath.io</a>, certificate by <a href="https://signpath.org">SignPath Foundation</a>.</p>
+      </div>
+
+      <h2>What is signed</h2>
+      <p>The Windows installer (<code>YourMemi-&lt;version&gt;.msi</code>) and the program inside it are signed for each tagged release. They're built from the <a href="https://github.com/alex-ha-192/memi">public source code</a> by GitHub Actions, on GitHub's own machines, and sent to SignPath straight from that build. Nothing built on a personal computer is signed.</p>
+      <p>Until the signing certificate is in place, Windows releases are unsigned, and Windows may warn about them.</p>
+
+      <h2>Team roles</h2>
+      <ul>
+        <li><strong>Committers and reviewers:</strong> <a href="https://github.com/alex-ha-192">alex-ha-192</a>. Changes from anyone else are reviewed before they're merged.</li>
+        <li><strong>Approvers:</strong> <a href="https://github.com/alex-ha-192">alex-ha-192</a>. Every release is approved by hand before it's signed.</li>
+      </ul>
+
+      <h2>Privacy</h2>
+      <p>The program doesn't send information to any other networked system unless you ask it to, by turning on sync with your own Google account. Details are in the <a href="/privacy/">privacy policy</a>.</p>
+
+      <h2>Uninstalling</h2>
+      <p>Open Windows Settings › Apps › Installed apps, find Your Memi, and choose Uninstall. Your notes are kept in <code>%APPDATA%\YourMemi</code>; delete that folder too if you want them gone.</p>
+    </main>
+
+    <footer class="site">
+      <div class="row">
+        <span>Your Memi is free software under the <a href="https://www.gnu.org/licenses/gpl-3.0.html">GPL-3.0</a>.</span>
+        <a href="https://github.com/alex-ha-192/memi">Source code</a>
+        <a href="https://github.com/alex-ha-192/memi/issues">Report a problem</a>
+        <a href="/code-signing/">Code signing policy</a>
+        <a href="mailto:hello@yourmemi.app">hello@yourmemi.app</a>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>
