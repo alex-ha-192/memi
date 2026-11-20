@@ -158,7 +158,18 @@ private fun SchemePreview(name: String, preview: BentoColors, selected: Boolean,
             Box(Modifier.fillMaxWidth().weight(0.6f).clip(RoundedCornerShape(6.dp)).background(dock))
         }
         Spacer(Modifier.height(6.dp))
-        Text(name, style = BentoType.caption.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold), color = colors.ink, maxLines = 1)
+        // The swatches are narrow, so with very large system text this label grows a little less
+        // (up to 1.1×) instead of being cut off.
+        val fontScale = androidx.compose.ui.platform.LocalDensity.current.fontScale
+        val caption = BentoType.caption
+        Text(
+            name,
+            style = caption.copy(
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                fontSize = caption.fontSize * minOf(1f, 1.1f / fontScale),
+            ),
+            color = colors.ink, maxLines = 1, softWrap = false,
+        )
     }
 }
 
