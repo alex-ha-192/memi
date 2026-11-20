@@ -1,7 +1,7 @@
 //! The colour scheme as CSS variables on <html>, from the same palettes as the apps
-//! (memi_engine::core::palette), so style.css only ever says var(--tile0) and so on.
+//! (memi_core::palette), so style.css only ever says var(--tile0) and so on.
 
-use memi_engine::core::palette::scheme;
+use memi_core::palette::scheme;
 
 fn hex(c: u32) -> String { format!("#{c:06x}") }
 fn alpha(c: u32, a: f32) -> String { format!("rgba({}, {}, {}, {a})", c >> 16 & 0xff, c >> 8 & 0xff, c & 0xff) }

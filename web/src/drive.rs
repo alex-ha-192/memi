@@ -3,13 +3,27 @@
 //! other files. The same calls as the desktop's sync/drive.rs and Android's DriveClient.kt.
 
 use anyhow::{anyhow, bail, Result};
-use memi_engine::sync::{RemoteFile, Unauthorized};
 use serde_json::Value;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 
 const API: &str = "https://www.googleapis.com/drive/v3";
 const UPLOAD: &str = "https://www.googleapis.com/upload/drive/v3";
+
+#[derive(Clone, Debug)]
+pub struct RemoteFile {
+    pub id: String,
+    pub name: String,
+    pub modified_time: Option<String>,
+}
+
+/// Google said the sign-in has expired or was removed.
+#[derive(Debug)]
+pub struct Unauthorized;
+impl std::fmt::Display for Unauthorized {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { f.write_str("Google sign-in expired") }
+}
+impl std::error::Error for Unauthorized {}
 
 pub struct Drive {
     token: String,
@@ -58,20 +72,20 @@ impl Drive {
         Ok(v.get("files").and_then(Value::as_array).map(|a| a.iter().filter_map(parse_file).collect()).unwrap_or_default())
     }
 
-    async fn find_impl(&self, name: &str) -> Result<Option<RemoteFile>> {
+    pub async fn find(&self, name: &str) -> Result<Option<RemoteFile>> {
         Ok(self.files(&format!("name='{name}' and trashed=false")).await?.into_iter().next())
     }
 
     /// Every file whose name starts with `prefix`, newest first.
-    async fn list_impl(&self, prefix: &str) -> Result<Vec<RemoteFile>> {
+    pub async fn list(&self, prefix: &str) -> Result<Vec<RemoteFile>> {
         Ok(self.files(&format!("name contains '{prefix}' and trashed=false")).await?.into_iter().filter(|f| f.name.starts_with(prefix)).collect())
     }
 
-    async fn download_impl(&self, id: &str) -> Result<Vec<u8>> {
+    pub async fn download(&self, id: &str) -> Result<Vec<u8>> {
         self.request("GET", &format!("{API}/files/{id}?alt=media"), None).await
     }
 
-    async fn create_impl(&self, name: &str, bytes: &[u8]) -> Result<RemoteFile> {
+    pub async fn create(&self, name: &str, bytes: &[u8]) -> Result<RemoteFile> {
         let boundary = format!("memi{}", js_sys::Date::now() as u64);
         let meta = serde_json::json!({ "name": name, "parents": ["appDataFolder"] }).to_string();
         let mut body = format!("--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{meta}\r\n--{boundary}\r\nContent-Type: application/octet-stream\r\n\r\n").into_bytes();
@@ -81,28 +95,18 @@ impl Drive {
         parse_file(&serde_json::from_slice(&res)?).ok_or_else(|| anyhow!("Unexpected answer from Google Drive"))
     }
 
-    async fn update_impl(&self, id: &str, bytes: &[u8]) -> Result<RemoteFile> {
+    pub async fn update(&self, id: &str, bytes: &[u8]) -> Result<RemoteFile> {
         let res = self.request("PATCH", &format!("{UPLOAD}/files/{id}?uploadType=media&fields=id,name,modifiedTime"), Some((bytes, "application/octet-stream"))).await?;
         parse_file(&serde_json::from_slice(&res)?).ok_or_else(|| anyhow!("Unexpected answer from Google Drive"))
     }
 
-    async fn delete_impl(&self, id: &str) -> Result<()> {
+    pub async fn delete(&self, id: &str) -> Result<()> {
         self.request("DELETE", &format!("{API}/files/{id}"), None).await.map(|_| ())
     }
 
     /// The email of the connected Google account, to show in Sync.
-    async fn email_impl(&self) -> Option<String> {
+    pub async fn email(&self) -> Option<String> {
         let v: Value = serde_json::from_slice(&self.request("GET", &format!("{API}/about?fields=user(emailAddress)"), None).await.ok()?).ok()?;
         v.pointer("/user/emailAddress").and_then(Value::as_str).map(str::to_string)
     }
-}
-
-impl memi_engine::sync::Drive for Drive {
-    async fn find(&self, name: &str) -> Result<Option<RemoteFile>> { self.find_impl(name).await }
-    async fn list(&self, prefix: &str) -> Result<Vec<RemoteFile>> { self.list_impl(prefix).await }
-    async fn download(&self, id: &str) -> Result<Vec<u8>> { self.download_impl(id).await }
-    async fn create(&self, name: &str, bytes: &[u8]) -> Result<RemoteFile> { self.create_impl(name, bytes).await }
-    async fn update(&self, id: &str, bytes: &[u8]) -> Result<RemoteFile> { self.update_impl(id, bytes).await }
-    async fn delete(&self, id: &str) -> Result<()> { self.delete_impl(id).await }
-    async fn email(&self) -> Option<String> { self.email_impl().await }
 }

@@ -2,7 +2,7 @@
 
 use crate::state::app;
 use leptos::prelude::*;
-use memi_engine::core::model::Person;
+use memi_core::model::Person;
 
 /// Lucide icons (ISC licence), the same set as the desktop app.
 pub fn icon_path(name: &str) -> &'static str {

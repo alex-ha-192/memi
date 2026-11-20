@@ -1,6 +1,6 @@
 [package]
 name = "memi-web"
-version = "0.6.1"
+version = "0.6.0"
 edition = "2021"
 description = "Memi in the browser (memi.yourmemi.app): the same data, merge and encryption as the apps."
 license = "MIT"
@@ -9,7 +9,6 @@ publish = false
 [dependencies]
 # Shared with the desktop app: model, dates, backup format, merge, encryption, pairing, palettes.
 memi-core = { path = "../core" }
-memi-engine = { path = "../engine" }
 
 # UI: Leptos, client-side rendering only (a static site; no server).
 leptos = { version = "0.8", features = ["csr"] }
