@@ -8,6 +8,8 @@ import androidx.room.migration.Migration
 import androidx.room.withTransaction
 import androidx.sqlite.db.SupportSQLiteDatabase
 import app.memi.data.AppDatabase
+import app.memi.data.Kind
+import app.memi.data.Occasion
 
 /** Runs [block] as one transaction (used when restoring a backup). */
 suspend fun AppDatabase.inTransaction(block: suspend () -> Unit) = withTransaction { block() }
