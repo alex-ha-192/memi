@@ -61,14 +61,18 @@ import kotlinx.coroutines.launch
 import java.time.Month
 import java.time.format.TextStyle
 import java.util.Locale
+import androidx.compose.material3.ModalBottomSheetProperties
+import androidx.compose.ui.window.SecureFlagPolicy
 
 @Composable
-fun BentoSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+fun BentoSheet(onDismiss: () -> Unit, secure: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
     val colors = Bento.colors
     app.memi.platform.DismissOnEscape(onDismiss)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        // A secure sheet can't be screenshotted, recorded or shown in the recent-apps preview.
+        properties = ModalBottomSheetProperties(securePolicy = if (secure) SecureFlagPolicy.SecureOn else SecureFlagPolicy.Inherit),
         containerColor = colors.sheet,
         contentColor = colors.ink,
         scrimColor = colors.scrim,

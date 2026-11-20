@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   The Windows installer (WiX v4+). It installs just for the current user (no admin prompt) and
-  replaces any older version in place: the UpgradeCode never changes, and CI gives every build
+  replaces any older version in place: the UpgradeCode and component GUIDs never change, and CI gives every build
   a higher version number, so a new .msi always upgrades the installed copy.
   Data (in %APPDATA%\YourMemi) is never touched by installing, upgrading or uninstalling.
 -->
@@ -19,7 +19,7 @@
     <StandardDirectory Id="LocalAppDataFolder">
       <Directory Id="ProgramsDir" Name="Programs">
         <Directory Id="INSTALLFOLDER" Name="Your Memi">
-          <Component Id="App">
+          <Component Id="App" Guid="3b7e2a51-9c4d-4f6e-8a21-5d0c7e9f1a32">
             <File Id="AppExe" Source="$(var.Exe)" Name="YourMemi.exe" />
             <RemoveFolder Id="RemoveInstallFolder" On="uninstall" />
             <RemoveFolder Id="RemovePrograms" Directory="ProgramsDir" On="uninstall" />
@@ -30,7 +30,7 @@
     </StandardDirectory>
 
     <StandardDirectory Id="ProgramMenuFolder">
-      <Component Id="StartMenuShortcut">
+      <Component Id="StartMenuShortcut" Guid="8d14c6f2-2b7a-4e95-b3d8-61fa0c2e47b9">
         <Shortcut Id="StartMenu" Name="Your Memi" Description="Remember the little things about the people in your life"
                   Target="[INSTALLFOLDER]YourMemi.exe" WorkingDirectory="INSTALLFOLDER" Icon="AppIcon" />
         <RegistryValue Root="HKCU" Key="Software\YourMemi" Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
@@ -38,7 +38,7 @@
     </StandardDirectory>
 
     <StandardDirectory Id="DesktopFolder">
-      <Component Id="DesktopShortcut">
+      <Component Id="DesktopShortcut" Guid="c52f9e07-6a3b-4d18-9e7c-0b84d3a1f6e5">
         <Shortcut Id="Desktop" Name="Your Memi" Target="[INSTALLFOLDER]YourMemi.exe" WorkingDirectory="INSTALLFOLDER" Icon="AppIcon" />
         <RegistryValue Root="HKCU" Key="Software\YourMemi" Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes" />
       </Component>

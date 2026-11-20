@@ -15,10 +15,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.foundation.clickable
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
@@ -48,7 +46,8 @@ fun SyncSheet(onDismiss: () -> Unit) {
         signIn()
     }
 
-    BentoSheet(onDismiss) {
+    // Secure because it can show the recovery key.
+    BentoSheet(onDismiss, secure = true) {
         SheetTitle("Sync")
         val problem = state.problem
         when {
@@ -95,6 +94,15 @@ fun SyncSheet(onDismiss: () -> Unit) {
     }
 }
 
+/** Copies the key, marked as sensitive so Android 13+ hides it from clipboard previews and keyboards. */
+private fun copySecret(context: android.content.Context, text: String) {
+    val clip = android.content.ClipData.newPlainText("Recovery key", text)
+    clip.description.extras = android.os.PersistableBundle().apply {
+        putBoolean(android.content.ClipDescription.EXTRA_IS_SENSITIVE, true)
+    }
+    context.getSystemService(android.content.ClipboardManager::class.java)?.setPrimaryClip(clip)
+}
+
 @Composable
 private fun Body(text: String) = Text(text, style = BentoType.body, color = Bento.colors.ink.copy(alpha = 0.8f))
 
@@ -114,7 +122,7 @@ private fun Status(title: String, detail: String) {
 @Composable
 private fun RecoveryKeyReveal(sync: SyncManager, follows: Boolean) {
     val colors = Bento.colors
-    val clipboard = LocalClipboardManager.current
+    val context = androidx.compose.ui.platform.LocalContext.current
     var shown by remember { mutableStateOf<String?>(null) }
     Text(
         when {
@@ -129,7 +137,7 @@ private fun RecoveryKeyReveal(sync: SyncManager, follows: Boolean) {
     } else {
         Text(key, style = BentoType.label.copy(fontFamily = FontFamily.Monospace), color = colors.ink,
             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(colors.track).padding(12.dp))
-        SecondaryButton("Copy", Modifier.fillMaxWidth()) { clipboard.setText(AnnotatedString(key)) }
+        SecondaryButton("Copy", Modifier.fillMaxWidth()) { copySecret(context, key) }
     }
 }
 
@@ -157,7 +165,9 @@ private fun RecoveryKeyEntry(sync: SyncManager) {
     var wrong by remember { mutableStateOf(false) }
     Body("There's already a Your Memi backup in this Google account, but this phone doesn't have its key yet. That happens when a phone wasn't set up from your old one.")
     Body("On a device that's already syncing, open Theme → Sync → Show recovery key, and type it here.")
-    BentoField("Recovery key", text, { text = it; wrong = false }, placeholder = "xxxxxxxx-xxxxxxxx-…", capitalization = KeyboardCapitalization.None)
+    BentoField("Recovery key", text, { text = it; wrong = false }, placeholder = "xxxxxxxx-xxxxxxxx-…", capitalization = KeyboardCapitalization.None,
+        // A password-type keyboard doesn't learn or suggest what's typed. The text stays visible.
+        keyboardType = androidx.compose.ui.text.input.KeyboardType.Password)
     if (wrong) Text("That key doesn't open this backup.", style = BentoType.caption, color = colors.danger)
     PrimaryButton("Unlock backup", Modifier.fillMaxWidth(), enabled = text.isNotBlank()) {
         sync.launch { if (!useRecoveryKey(text)) wrong = true }
