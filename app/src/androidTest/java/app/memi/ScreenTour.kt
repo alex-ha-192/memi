@@ -138,7 +138,7 @@ class ScreenTour {
     }
 
     @Test fun t07_themesAndSync() {
-        desc("Themes").performClick(); shot("11-theme-panel")
+        desc("Settings").performClick(); shot("11-theme-panel")
         text("Sync").performClick(); shot("12-sync-sheet")
     }
 

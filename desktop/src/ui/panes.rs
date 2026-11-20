@@ -66,6 +66,26 @@ impl Render for MemiView {
 }
 
 impl MemiView {
+    /// Sync in a word or two, above "Your people": Synced, Syncing…, Not synced or Sign in.
+    /// Opens Sync. Routine checks in the background don't show as Syncing.
+    fn sync_chip(&mut self, c: &Colors, cx: &mut Context<Self>) -> Stateful<Div> {
+        let s = &self.sync_ui;
+        let (icon_name, label, bg, ink) = if matches!(s.problem, Some(crate::sync::Problem::NeedsSignIn)) {
+            ("cloud-alert", "Sign in", c.gift(), c.gift_ink())
+        } else if s.busy && (!s.settings.enabled || s.problem.is_some()) {
+            ("refresh-cw", "Syncing…", c.tile(3), c.tile_ink(3))
+        } else if s.settings.enabled && s.problem.is_none() {
+            ("cloud-check", "Synced", c.tile(1), c.tile_ink(1))
+        } else {
+            ("cloud-off", "Not synced", c.card, c.ink)
+        };
+        div().id("sync-chip").flex().items_center().gap(px(5.)).pl(px(8.)).pr(px(11.)).py(px(3.)).rounded_full().bg(bg)
+            .cursor_pointer()
+            .child(icon(icon_name, 14., ink))
+            .child(t(label.to_string(), 13., FontWeight::BOLD, ink))
+            .on_click(cx.listener(|this, _, _, cx| { this.theme_open = false; this.overlay = Some(Overlay::Sync); cx.notify(); }))
+    }
+
     // --- Left: the list pane ---------------------------------------------------------------------
 
     fn list_pane(&mut self, c: &Colors, narrow: bool, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -73,10 +93,12 @@ impl MemiView {
         let header = div().flex().items_center().gap(px(10.)).px(px(28.)).pt(px(26.)).pb(px(18.))
             .child(match &self.search {
                 Some(input) => div().flex_1().min_w_0().child(Input::new(input).h(px(44.))),
-                None => div().flex_1().min_w_0().overflow_hidden().child(display("Your people", c).text_size(px(28.)).whitespace_nowrap().text_ellipsis()),
+                None => div().flex_1().min_w_0().overflow_hidden().flex().flex_col().gap(px(6.))
+                    .child(div().flex().child(self.sync_chip(c, cx)))
+                    .child(display("Your people", c).text_size(px(28.)).whitespace_nowrap().text_ellipsis()),
             })
             .when(self.search.is_none(), |d| d
-                .child(header_button("themes", "palette", self.theme_open, c)
+                .child(header_button("themes", "settings", self.theme_open, c)
                     .on_click(cx.listener(|this, _, _, cx| { this.theme_open = !this.theme_open; cx.notify(); })))
                 .child(header_button("search", "search", false, c)
                     .on_click(cx.listener(|this, _, window, cx| this.open_search(window, cx))))

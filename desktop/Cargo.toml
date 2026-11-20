@@ -1,6 +1,6 @@
 [package]
 name = "your-memi"
-version = "0.6.2"
+version = "0.6.3"
 edition = "2021"
 description = "Remember the little things about the people in your life"
 license = "GPL-3.0-or-later"

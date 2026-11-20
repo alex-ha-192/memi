@@ -1,6 +1,6 @@
 [package]
 name = "memi-core"
-version = "0.6.2"
+version = "0.6.3"
 edition = "2021"
 description = "Memi's data model, dates, backup format, sync merge, encryption and pairing, shared by the desktop and web apps"
 license = "GPL-3.0-or-later"

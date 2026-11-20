@@ -1,6 +1,6 @@
 [package]
 name = "memi-web"
-version = "0.6.2"
+version = "0.6.3"
 edition = "2021"
 description = "Memi in the browser (memi.yourmemi.app): the same data, merge and encryption as the apps."
 license = "MIT"

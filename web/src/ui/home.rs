@@ -39,18 +39,44 @@ fn Header() -> impl IntoView {
             } else {
                 view! {
                     <div class="grow">
-                        <div class="caption muted">{move || {
-                            let t = dates::today();
-                            format!("{} {}", t.format("%a"), dates::short_date(t))
-                        }}</div>
+                        <div class="date-line">
+                            <span class="caption muted">{move || {
+                                let t = dates::today();
+                                format!("{} {}", t.format("%a"), dates::short_date(t))
+                            }}</span>
+                            <SyncChip />
+                        </div>
                         <h1>"Your people"</h1>
                     </div>
-                    <button class="round" class:on=move || a.theme_open.get() title="Theme and sync" on:click=move |_| a.theme_open.update(|o| *o = !*o)><Icon name="palette" /></button>
+                    <button class="round" class:on=move || a.theme_open.get() title="Settings" aria-label="Settings" on:click=move |_| a.theme_open.update(|o| *o = !*o)><Icon name="settings" /></button>
                     <button class="round" title="Search" on:click=move |_| a.search.set(Some(String::new()))><Icon name="search" /></button>
                     <button class="round" title="Add a person" on:click=move |_| a.overlay.set(Some(Overlay::EditPerson(None)))><Icon name="plus" /></button>
                 }.into_any()
             }}
         </header>
+    }
+}
+
+/// Sync in a word or two, beside the date: Synced, Syncing…, Not synced or Sign in. Opens Sync.
+/// Routine checks in the background don't show as Syncing.
+#[component]
+fn SyncChip() -> impl IntoView {
+    let a = app();
+    let state = move || {
+        let st = a.status();
+        let on = a.sync_settings().enabled;
+        if matches!(st.problem, Some(Problem::NeedsSignIn)) { ("signin", "cloud-alert", "Sign in") }
+        else if st.busy && (!on || st.problem.is_some()) { ("syncing", "refresh", "Syncing…") }
+        else if on && st.problem.is_none() { ("synced", "cloud-check", "Synced") }
+        else { ("off", "cloud-off", "Not synced") }
+    };
+    view! {
+        <button class=move || format!("sync-chip {}", state().0)
+            aria-label=move || format!("Sync: {}. Open Sync", state().2)
+            on:click=move |_| { a.theme_open.set(false); a.overlay.set(Some(Overlay::Sync)); }>
+            {move || view! { <Icon name=state().1 size=15. /> }}
+            <span>{move || state().2}</span>
+        </button>
     }
 }
 

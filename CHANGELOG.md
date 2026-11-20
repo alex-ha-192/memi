@@ -2,7 +2,13 @@
 
 Every release of Memi, newest first. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/). Releases 0.1 to 0.4 came before this repository; their entries are reconstructed from the project's notes and have no exact dates.
 
-## [Unreleased] — 0.6.2
+## [Unreleased] — 0.6.3
+
+### Changed
+- Sync is easy to find: Home shows its state beside the date (Synced, Syncing…, Not synced or Sign in), and tapping it opens Sync. On desktop it sits above "Your people".
+- The palette button on Home is now a gear (Settings), since it holds more than the theme: birthday reminders and Sync too.
+
+## [0.6.2] — 2026-11-20
 
 A new device now asks whether you've used Memi before, Memi has a brighter icon and is called Memi everywhere, and underneath, every app runs on one shared engine. (0.6.1, the engine on its own, was never released; its changes are below.)
 

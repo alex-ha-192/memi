@@ -72,6 +72,11 @@
     <keyword>notes</keyword>
   </keywords>
   <releases>
+    <release version="0.6.3" date="2026-11-20">
+      <description>
+        <p>Sync is easier to find: Home now shows whether you're synced, and one click opens Sync. The palette button is now Settings.</p>
+      </description>
+    </release>
     <release version="0.6.2" date="2026-11-20">
       <description>
         <p>A new device now asks whether you've used Memi before, so it can pick up from your other devices in a couple of steps, or start fresh with or without sync. Memi also has a brighter icon, and is called Memi everywhere. Underneath, Memi on Android, Windows, Linux and the web now runs on one shared engine, and its security code uses established, audited libraries.</p>

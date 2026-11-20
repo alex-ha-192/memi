@@ -207,3 +207,10 @@ textarea { resize: vertical; }
 .chip-icon.c1 { background: var(--tile1); color: var(--tileink1); }
 .chip-icon.c3 { background: var(--tile3); color: var(--tileink3); }
 .first-launch .back { align-self: flex-start; background: none; border: 0; font: inherit; cursor: pointer; padding: 4px 0; }
+
+/* The sync chip beside the date on Home (home.rs) */
+.date-line { display: flex; align-items: center; gap: 10px; }
+.sync-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 11px 3px 8px; border-radius: 999px; border: 0; font: inherit; font-size: 13px; font-weight: 700; white-space: nowrap; cursor: pointer; background: var(--card); color: var(--ink); }
+.sync-chip.synced { background: var(--tile1); color: var(--tileink1); }
+.sync-chip.syncing { background: var(--tile3); color: var(--tileink3); }
+.sync-chip.signin { background: var(--tile0); color: var(--tileink0); }

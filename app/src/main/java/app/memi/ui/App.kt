@@ -1,6 +1,7 @@
 package app.memi.ui
 
 import app.memi.ui.screens.FirstLaunch
+import app.memi.ui.screens.SyncBadge
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -155,8 +156,14 @@ private fun Content(vm: AppViewModel) {
     val freshCollapsed by vm.freshCollapsed.collectAsStateWithLifecycle()
     val reminders by vm.birthdayReminders.collectAsStateWithLifecycle()
     val context = androidx.compose.ui.platform.LocalContext.current
-    val model = remember(people, notes, collections, freshCollapsed, syncState.joins) {
-        HomeModel(people, notes, collections, freshCollapsed, syncState.joins)
+    val syncBadge = when {
+        syncState.problem is app.memi.sync.SyncManager.Problem.NeedsSignIn -> SyncBadge.SignIn
+        syncState.busy -> SyncBadge.Syncing
+        syncState.enabled && syncState.problem == null -> SyncBadge.Synced
+        else -> SyncBadge.NotSynced
+    }
+    val model = remember(people, notes, collections, freshCollapsed, syncState.joins, syncBadge) {
+        HomeModel(people, notes, collections, freshCollapsed, syncState.joins, syncBadge)
     }
     val actions = remember(collections) {
         NoteActions(
@@ -242,6 +249,7 @@ private fun Content(vm: AppViewModel) {
                         themesOpen = themesOpen, search = search, onSearchChange = { search = it },
                         onToggleThemes = toggleThemes,
                         onAddPerson = { dialog = Dialog.EditPerson(null) },
+                        onOpenSync = { dialog = Dialog.Sync },
                         onOpenPerson = { selectedId = it; search = null },
                         onOpenCategory = openCategory,
                         actions = actions, peopleActions = peopleActions, onToggleFresh = { vm.toggleFresh() },
@@ -282,6 +290,7 @@ private fun Content(vm: AppViewModel) {
                         themesOpen = themesOpen, search = search, onSearchChange = { search = it },
                         onToggleThemes = toggleThemes,
                         onAddPerson = { dialog = Dialog.EditPerson(null) },
+                        onOpenSync = { dialog = Dialog.Sync },
                         onOpenPerson = { selectedId = it; search = null },
                         onOpenCategory = openCategory,
                         actions = actions, peopleActions = peopleActions, onToggleFresh = { vm.toggleFresh() },

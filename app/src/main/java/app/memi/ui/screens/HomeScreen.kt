@@ -50,13 +50,21 @@ import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.CloudDone
+import androidx.compose.material.icons.rounded.CloudOff
+import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -104,7 +112,12 @@ data class HomeModel(
     val freshCollapsed: Boolean = false,
     /** Other devices asking for the sync key. */
     val joins: List<app.memi.sync.SyncManager.Join> = emptyList(),
+    /** What the chip beside the date says about sync. */
+    val sync: SyncBadge = SyncBadge.NotSynced,
 )
+
+/** Sync's state in a word or two, beside the date on Home. Tapping it opens Sync. */
+enum class SyncBadge { Synced, Syncing, NotSynced, SignIn }
 
 /**
  * Home: what's coming up, what's still fresh (new or due soon) and everyone.
@@ -120,6 +133,7 @@ fun HomeScreen(
     onSearchChange: (String?) -> Unit,
     onToggleThemes: () -> Unit,
     onAddPerson: () -> Unit,
+    onOpenSync: () -> Unit,
     onOpenPerson: (Long) -> Unit,
     onOpenCategory: (personId: Long, collectionId: Long) -> Unit,
     actions: NoteActions,
@@ -138,7 +152,7 @@ fun HomeScreen(
         contentPadding = contentPadding,
     ) {
         item(key = "header") {
-            Header(asListPane, themesOpen, search, onSearchChange, onToggleThemes, onAddPerson, Modifier.padding(horizontal = hPad))
+            Header(asListPane, themesOpen, search, onSearchChange, onToggleThemes, onAddPerson, model.sync, onOpenSync, Modifier.padding(horizontal = hPad))
         }
 
         if (search != null) {
@@ -223,6 +237,8 @@ private fun Header(
     onSearchChange: (String?) -> Unit,
     onToggleThemes: () -> Unit,
     onAddPerson: () -> Unit,
+    sync: SyncBadge,
+    onOpenSync: () -> Unit,
     modifier: Modifier,
 ) {
     val colors = Bento.colors
@@ -235,10 +251,13 @@ private fun Header(
         ) { searching ->
             if (!searching) {
                 Column {
-                    if (!asListPane) {
-                        Text(Dates.today().let { "${it.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())} ${Dates.shortDate(it)}" }, style = BentoType.label, color = colors.muted)
-                        Spacer(Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        if (!asListPane) {
+                            Text(Dates.today().let { "${it.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())} ${Dates.shortDate(it)}" }, style = BentoType.label, color = colors.muted)
+                        }
+                        SyncChip(sync, onOpenSync)
                     }
+                    Spacer(Modifier.height(4.dp))
                     FitText("Your people", style = if (asListPane) BentoType.display.copy(fontSize = BentoType.tileTitle.fontSize.times(1.27f)) else BentoType.display, color = colors.ink)
                 }
             } else {
@@ -265,7 +284,7 @@ private fun Header(
         Spacer(Modifier.width(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             if (search == null) {
-                HeaderButton(Icons.Rounded.Palette, "Themes", selected = themesOpen, onClick = onToggleThemes)
+                HeaderButton(Icons.Rounded.Settings, "Settings", selected = themesOpen, onClick = onToggleThemes)
                 HeaderButton(Icons.Rounded.Search, "Search") { onSearchChange("") }
                 HeaderButton(Icons.Rounded.Add, "Add person", onClick = onAddPerson)
             } else {
@@ -552,5 +571,44 @@ private fun PersonMenu(expanded: Boolean, onDismiss: () -> Unit, p: Person, all:
             MenuRow("Edit", Icons.Rounded.Edit) { onDismiss(); actions.onEdit(p) }
             MenuRow("Remove", Icons.Rounded.DeleteOutline, tint = colors.danger) { onDismiss(); actions.onRemove(p) }
         }
+    }
+}
+
+/**
+ * The sync chip beside the date: Synced, Syncing…, Not synced or Sign in. "Syncing…" shows only
+ * when a sync takes more than a moment, so the regular checks every few seconds don't flicker.
+ */
+@Composable
+private fun SyncChip(badge: SyncBadge, onClick: () -> Unit) {
+    val colors = Bento.colors
+    var shown by remember { mutableStateOf(if (badge == SyncBadge.Syncing) SyncBadge.Synced else badge) }
+    LaunchedEffect(badge) {
+        if (badge == SyncBadge.Syncing) kotlinx.coroutines.delay(800)
+        shown = badge
+    }
+    val (icon, label) = when (shown) {
+        SyncBadge.Synced -> Icons.Rounded.CloudDone to "Synced"
+        SyncBadge.Syncing -> Icons.Rounded.Sync to "Syncing…"
+        SyncBadge.NotSynced -> Icons.Rounded.CloudOff to "Not synced"
+        SyncBadge.SignIn -> Icons.Rounded.ErrorOutline to "Sign in"
+    }
+    val (bg, ink) = when (shown) {
+        SyncBadge.Synced -> colors.plan to colors.planInk
+        SyncBadge.Syncing -> colors.tiles[3] to colors.tileInks[3]
+        SyncBadge.NotSynced -> colors.card to colors.ink
+        SyncBadge.SignIn -> colors.gift to colors.giftInk
+    }
+    Row(
+        Modifier
+            .clip(CircleShape)
+            .background(bg)
+            .semantics(mergeDescendants = true) { contentDescription = "Sync: $label. Open Sync" }
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(start = 8.dp, end = 11.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        Icon(icon, contentDescription = null, tint = ink, modifier = Modifier.size(15.dp))
+        Text(label, style = BentoType.label, color = ink, maxLines = 1, softWrap = false)
     }
 }
