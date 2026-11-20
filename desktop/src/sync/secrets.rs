@@ -49,11 +49,13 @@ impl Secrets {
         }
         let Ok(json) = serde_json::to_vec(map) else { return };
         let tmp = self.fallback.with_extension("tmp");
+        // Start from a fresh file so its permissions are always the private ones set below.
+        let _ = std::fs::remove_file(&tmp);
         #[cfg(unix)]
         {
             use std::io::Write;
             use std::os::unix::fs::OpenOptionsExt;
-            let Ok(mut f) = std::fs::OpenOptions::new().write(true).create(true).truncate(true).mode(0o600).open(&tmp) else { return };
+            let Ok(mut f) = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&tmp) else { return };
             if f.write_all(&json).is_err() { return; }
         }
         #[cfg(not(unix))]

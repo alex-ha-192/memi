@@ -225,8 +225,13 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-25.08
-      options: --privileged
+      # The runner's preinstalled SDKs are mounted so they can be removed: the Rust build needs the space.
+      options: --privileged -v /usr/share/dotnet:/host/dotnet -v /usr/local/lib/android:/host/android -v /opt/hostedtoolcache:/host/toolcache
     steps:
+      - name: Free disk space
+        run: |
+          rm -rf /host/dotnet/* /host/android/* /host/toolcache/* || true
+          df -h /
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:

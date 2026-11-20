@@ -19,13 +19,7 @@ pub fn load_for_cropping(path: &Path) -> Result<DynamicImage> {
     let len = std::fs::metadata(path)?.len();
     anyhow::ensure!(len <= MAX_FILE_BYTES, "That photo is too large.");
     let bytes = std::fs::read(path)?;
-    let mut reader = ImageReader::new(Cursor::new(&bytes)).with_guessed_format()?;
-    let mut limits = image::Limits::default();
-    limits.max_image_width = Some(20_000);
-    limits.max_image_height = Some(20_000);
-    limits.max_alloc = Some(512 * 1024 * 1024);
-    reader.limits(limits);
-    let mut decoder = reader.into_decoder().context("Unsupported image")?;
+    let mut decoder = limited_decoder(&bytes)?;
     let orientation = decoder.orientation().ok();
     let mut img = DynamicImage::from_decoder(decoder).context("Couldn't read that photo")?;
     if let Some(o) = orientation { img.apply_orientation(o); }
@@ -33,6 +27,16 @@ pub fn load_for_cropping(path: &Path) -> Result<DynamicImage> {
         img = img.resize(LOAD_EDGE, LOAD_EDGE, FilterType::Triangle);
     }
     Ok(img)
+}
+
+fn limited_decoder(bytes: &[u8]) -> Result<impl ImageDecoder + '_> {
+    let mut reader = ImageReader::new(Cursor::new(bytes)).with_guessed_format()?;
+    let mut limits = image::Limits::default();
+    limits.max_image_width = Some(20_000);
+    limits.max_image_height = Some(20_000);
+    limits.max_alloc = Some(512 * 1024 * 1024);
+    reader.limits(limits);
+    reader.into_decoder().context("Unsupported image")
 }
 
 /// Saves the cropped area (x, y, w, h in the image's pixels) as the profile photo.
@@ -57,8 +61,9 @@ pub fn save_crop(img: &DynamicImage, x: u32, y: u32, w: u32, h: u32, dir: &Path)
 
 /// Saves a photo that arrived in a sync backup (already cropped) under a new name.
 pub fn save_bytes(bytes: &[u8], dir: &Path) -> Result<PathBuf> {
-    // Decode first so only real images are written to disk.
-    let img = image::load_from_memory(bytes).context("Not an image")?;
+    // Decode first (with the same size limits) so only real images are written to disk.
+    anyhow::ensure!(bytes.len() as u64 <= MAX_FILE_BYTES, "Photo too large");
+    let img = DynamicImage::from_decoder(limited_decoder(bytes)?).context("Not an image")?;
     std::fs::create_dir_all(dir)?;
     let path = dir.join(format!("{}.jpg", uuid::Uuid::new_v4()));
     let mut file = std::fs::File::create(&path)?;
