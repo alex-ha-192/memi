@@ -1,5 +1,5 @@
-# Builds Memi for Android, Windows and Linux on every push.
-# Push a tag like v0.4.0 and the files are also attached to a GitHub Release.
+# Builds Your Memi on every push. Push a tag like v0.5.0 to publish a GitHub Release
+# (Android APK plus the desktop downloads), which Obtainium and the website link to.
 name: Build
 
 on:
@@ -28,6 +28,10 @@ jobs:
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
 
+      - name: Version from the tag
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then echo "VERSION_ARG=-PmemiVersion=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"; fi
+
       - name: Signing key
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -36,7 +40,7 @@ jobs:
             echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/memi.keystore"
             echo "MEMI_KEYSTORE=$RUNNER_TEMP/memi.keystore" >> "$GITHUB_ENV"
           else
-            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret, so this APK is signed with a throwaway key. It won't update an installed Memi, and Google sign-in won't work. See README > Automatic builds."
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret, so this APK is signed with a throwaway key. It won't update an installed Your Memi, and Google sign-in won't work. See README > Automatic builds."
           fi
 
       - name: Build
@@ -44,40 +48,26 @@ jobs:
           MEMI_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           MEMI_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           MEMI_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: ./gradlew :app:assembleRelease --stacktrace
+        run: ./gradlew :app:assembleRelease $VERSION_ARG --stacktrace
 
       - name: Name the APK and show its signing fingerprint
         run: |
-          VERSION=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          VERSION=$(python3 -c "import json;print(json.load(open('app/build/outputs/apk/release/output-metadata.json'))['elements'][0]['versionName'])")
           mkdir -p out
-          cp app/build/outputs/apk/release/app-release.apk "out/Memi-$VERSION.apk"
+          cp app/build/outputs/apk/release/app-release.apk "out/YourMemi-$VERSION.apk"
           APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
           echo "Signing certificate (the SHA-1 goes in Google Cloud's Android client):"
-          "$APKSIGNER" verify --print-certs "out/Memi-$VERSION.apk" | grep -E "SHA-1|SHA-256"
+          "$APKSIGNER" verify --print-certs "out/YourMemi-$VERSION.apk" | grep -E "SHA-1|SHA-256"
 
       - uses: actions/upload-artifact@v4
         with:
           name: android
           path: out/*.apk
 
-  desktop:
-    name: Desktop (${{ matrix.name }})
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Windows
-            os: windows-latest
-            task: packageMsi
-            folder: msi
-          - name: Linux
-            os: ubuntu-latest
-            task: packageDeb
-            folder: deb
-    runs-on: ${{ matrix.os }}
-    defaults:
-      run:
-        shell: bash
+  android-screens:
+    name: Android screenshots
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -85,30 +75,22 @@ jobs:
           distribution: temurin
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
-
-      - name: Linux packaging tools
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y fakeroot
-
-      - name: Build
-        run: ./gradlew :desktop:${{ matrix.task }} --stacktrace
-
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      - name: Build the app and the tour
+        run: ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: false
+          script: bash .github/scripts/screen-tour.sh
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: desktop-${{ matrix.folder }}
-          path: desktop/build/compose/binaries/main/${{ matrix.folder }}/*
-
-  release:
-    name: Release
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [android, desktop]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: files
-          merge-multiple: true
-      - uses: softprops/action-gh-release@v2
-        with:
-          files: files/*
-          generate_release_notes: true
+          name: android-screens
+          path: shots/

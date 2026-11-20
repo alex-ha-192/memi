@@ -22,4 +22,3 @@ dependencyResolutionManagement {
 
 rootProject.name = "Memi"
 include(":app")
-include(":desktop")

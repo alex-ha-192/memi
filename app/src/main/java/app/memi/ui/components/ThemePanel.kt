@@ -1,0 +1,184 @@
+package app.memi.ui.components
+
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.DarkMode
+import androidx.compose.material.icons.rounded.LightMode
+import androidx.compose.material.icons.rounded.PhoneAndroid
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.dp
+import app.memi.data.Appearance
+import app.memi.data.ThemeChoice
+import app.memi.ui.theme.Bento
+import app.memi.ui.theme.BentoColors
+import app.memi.ui.theme.BentoType
+import app.memi.ui.theme.Motion
+import app.memi.ui.theme.Schemes
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.CloudSync
+import androidx.compose.foundation.clickable
+
+/**
+ * The theme picker. It slides up from the bottom without dimming anything, so the header
+ * buttons stay usable; the palette button toggles it. Every colour eases into place.
+ */
+@Composable
+fun ThemePanel(
+    choice: ThemeChoice,
+    onScheme: (String) -> Unit,
+    onAppearance: (Appearance) -> Unit,
+    syncDetail: String,
+    onSync: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = Bento.colors
+    val modeLabel = when (choice.appearance) {
+        Appearance.LIGHT -> "light"
+        Appearance.DARK -> "dark"
+        Appearance.SYSTEM -> "following your phone (${if (colors.isDark) "dark" else "light"})"
+    }
+    Column(
+        modifier
+            .fillMaxWidth()
+            .shadow(24.dp, RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp), ambientColor = Color.Black.copy(alpha = 0.2f), spotColor = Color.Black.copy(alpha = 0.2f))
+            .clip(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp))
+            .background(colors.sheet)
+            .padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 22.dp),
+    ) {
+        Box(Modifier.align(Alignment.CenterHorizontally).width(40.dp).height(4.dp).clip(RoundedCornerShape(2.dp)).background(colors.handle))
+        Spacer(Modifier.height(12.dp))
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text("Theme", style = BentoType.tileTitle.copy(fontSize = BentoType.section.fontSize), color = colors.ink, modifier = Modifier.weight(1f))
+            Text("${choice.scheme} · $modeLabel", style = BentoType.label, color = colors.muted)
+        }
+        Spacer(Modifier.height(14.dp))
+        Row(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Schemes.all.forEach { scheme ->
+                val preview = if (colors.isDark) scheme.dark else scheme.light
+                SchemePreview(
+                    name = scheme.name,
+                    preview = preview,
+                    selected = scheme.name == choice.scheme,
+                    onClick = { onScheme(scheme.name) },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(colors.track)
+                .padding(4.dp)
+                .selectableGroup(),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            ModeOption("Light", Icons.Rounded.LightMode, choice.appearance == Appearance.LIGHT, Modifier.weight(1f)) { onAppearance(Appearance.LIGHT) }
+            ModeOption("Dark", Icons.Rounded.DarkMode, choice.appearance == Appearance.DARK, Modifier.weight(1f)) { onAppearance(Appearance.DARK) }
+            ModeOption("System", Icons.Rounded.PhoneAndroid, choice.appearance == Appearance.SYSTEM, Modifier.weight(1f)) { onAppearance(Appearance.SYSTEM) }
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(colors.card)
+                .clickable(role = Role.Button, onClick = onSync)
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Rounded.CloudSync, contentDescription = null, tint = colors.ink, modifier = Modifier.size(22.dp))
+            Spacer(Modifier.width(12.dp))
+            Text("Sync", style = BentoType.cardTitle, color = colors.ink)
+            Spacer(Modifier.width(10.dp))
+            Text(syncDetail, style = BentoType.label, color = colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = colors.muted)
+        }
+    }
+}
+
+@Composable
+private fun SchemePreview(name: String, preview: BentoColors, selected: Boolean, onClick: () -> Unit, modifier: Modifier) {
+    val colors = Bento.colors
+    // Each preview's colours ease too, so flipping light/dark morphs the swatches.
+    val bg by animateColorAsState(preview.bg, Motion.colour(), label = "pBg")
+    val gift by animateColorAsState(preview.gift, Motion.colour(), label = "pGift")
+    val plan by animateColorAsState(preview.plan, Motion.colour(), label = "pPlan")
+    val note by animateColorAsState(preview.note, Motion.colour(), label = "pNote")
+    val dock by animateColorAsState(preview.dock, Motion.colour(), label = "pDock")
+    val ring by animateDpAsState(if (selected) 2.dp else 0.dp, Motion.settle(), label = "ring")
+    Column(
+        modifier.selectable(selected = selected, role = Role.RadioButton, onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .height(84.dp)
+                .border(ring, colors.ink, RoundedCornerShape(18.dp))
+                .padding(if (selected) 4.dp else 0.dp)
+                .clip(RoundedCornerShape(if (selected) 14.dp else 18.dp))
+                .background(bg)
+                .padding(6.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Box(Modifier.fillMaxWidth().weight(1.4f).clip(RoundedCornerShape(10.dp)).background(gift))
+            Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Box(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(7.dp)).background(plan))
+                Box(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(7.dp)).background(note))
+            }
+            Box(Modifier.fillMaxWidth().weight(0.6f).clip(RoundedCornerShape(6.dp)).background(dock))
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(name, style = BentoType.caption.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold), color = colors.ink, maxLines = 1)
+    }
+}
+
+@Composable
+private fun ModeOption(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val colors = Bento.colors
+    val pill = if (colors.isDark) Color.White.copy(alpha = 0.12f) else colors.sheet
+    val bg by animateColorAsState(if (selected) pill else Color.Transparent, Motion.colour(), label = "modeBg")
+    val fg by animateColorAsState(if (selected) colors.ink else colors.muted, Motion.colour(), label = "modeFg")
+    Row(
+        modifier
+            .height(44.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(bg)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(17.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(label, style = BentoType.itemTitle.copy(fontSize = BentoType.body.fontSize), color = fg)
+    }
+}
