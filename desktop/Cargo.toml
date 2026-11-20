@@ -1,0 +1,59 @@
+[package]
+name = "your-memi"
+version = "0.5.0"
+edition = "2021"
+description = "Remember the little things about the people in your life"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/alex-ha-192/memi"
+publish = false
+
+[[bin]]
+name = "your-memi"
+path = "src/main.rs"
+
+[dependencies]
+# UI: GPUI (the snapshot gpui-component is built against) and its component library for text fields.
+gpui = { package = "gpui-pre", version = "=0.3.12" }
+gpui-platform = { package = "gpui-pre-platform", version = "=0.3.12", features = ["x11", "wayland"] }
+gpui-component = "=0.10.0"
+
+# Data
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+directories = "5"
+uuid = { version = "1", features = ["v4"] }
+anyhow = "1"
+
+# Photos
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif", "bmp"] }
+rfd = { version = "0.15", default-features = false, features = ["xdg-portal", "async-std"] }
+
+# Sync: HTTPS with rustls only, AES-GCM, P-256 for QR pairing, no telemetry anywhere.
+ureq = { version = "2", default-features = false, features = ["tls", "json"] }
+tiny_http = "0.12"
+webbrowser = "1"
+aes-gcm = "0.10"
+p256 = { version = "0.13", features = ["ecdh", "pkcs8"] }
+hkdf = "0.12"
+sha2 = "0.10"
+rand = "0.8"
+base64 = "0.22"
+flate2 = "1"
+qrcode = { version = "0.14", default-features = false }
+keyring = { version = "3", features = ["windows-native", "async-secret-service", "async-io", "crypto-rust"] }
+zeroize = "1"
+
+[build-dependencies]
+winresource = "0.1"
+
+[patch.crates-io]
+# Older xattr (pulled in by GPUI) doesn't build against newer libc on Linux; one-line fix.
+xattr = { path = "vendor/xattr-0.2.3" }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 4
+strip = true
