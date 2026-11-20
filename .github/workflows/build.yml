@@ -200,7 +200,7 @@ jobs:
         env:
           VERSION: ${{ needs.version.outputs.version }}
         run: |
-          # The .exe carries the same version as the installer (code signing checks they match).
+          # The .exe carries the same version as the installer.
           sed -i "0,/^version = .*/s//version = \"$VERSION\"/" Cargo.toml
           cargo build --release
       - name: Installer
@@ -212,47 +212,6 @@ jobs:
           wix build desktop/packaging/main.wxs -arch x64 \
             -d Version="$VERSION" -d Exe="desktop/target/release/your-memi.exe" -d Assets="desktop/assets" \
             -o "out/YourMemi-$VERSION.msi"
-
-      # Code signing through SignPath Foundation, for tagged releases only. Off until the
-      # SIGNPATH_API_TOKEN secret exists. Each request waits for a person to approve it in SignPath.
-      - name: Check for signing
-        id: signing
-        env:
-          HAS_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN != '' }}
-        run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* && "$HAS_TOKEN" == true ]]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            echo "::warning::No SIGNPATH_API_TOKEN secret, so this Windows installer is unsigned. See README > Windows code signing."
-          fi
-      - name: Upload unsigned installer
-        id: unsigned
-        if: steps.signing.outputs.enabled == 'true'
-        uses: actions/upload-artifact@v7
-        with:
-          path: out/YourMemi-${{ needs.version.outputs.version }}.msi
-          archive: false
-      - name: Sign installer
-        if: steps.signing.outputs.enabled == 'true'
-        uses: signpath/github-action-submit-signing-request@v3
-        with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'your-memi' }}
-          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG || 'release-signing' }}
-          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
-          skip-decompress: true
-          wait-for-completion: true
-          # Leaves time to approve the request in SignPath.
-          wait-for-completion-timeout-in-seconds: 7200
-          output-artifact-directory: signed
-          parameters: |
-            version: ${{ toJSON(needs.version.outputs.version) }}
-      - name: Use the signed installer
-        if: steps.signing.outputs.enabled == 'true'
-        run: |
-          ls -la signed
-          cp -f signed/*.msi out/
 
       - uses: actions/upload-artifact@v4
         with:
