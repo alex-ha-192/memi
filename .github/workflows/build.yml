@@ -60,7 +60,7 @@ jobs:
             echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/memi.keystore"
             echo "MEMI_KEYSTORE=$RUNNER_TEMP/memi.keystore" >> "$GITHUB_ENV"
           else
-            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret, so this APK is signed with a throwaway key. It won't update an installed Your Memi, and Google sign-in won't work. See README > Automatic builds."
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret, so this APK is signed with a throwaway key. It won't update an installed Your Memi, and Google sign-in won't work. See README > Continuous builds and releases > Secrets."
           fi
       - name: Build
         env:
