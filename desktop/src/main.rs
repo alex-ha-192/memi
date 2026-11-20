@@ -56,7 +56,7 @@ fn main() {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
                 titlebar: Some(TitlebarOptions { title: Some("Your Memi".into()), ..Default::default() }),
                 app_id: Some(APP_ID.into()),
-                window_min_size: Some(size(px(880.), px(600.))),
+                window_min_size: Some(size(px(480.), px(560.))),
                 icon,
                 ..Default::default()
             },

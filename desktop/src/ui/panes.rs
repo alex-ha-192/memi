@@ -12,15 +12,23 @@ use gpui::*;
 use gpui_component::input::Input;
 
 const LIST_WIDTH: f32 = 400.;
+/// Below this width the window shows one screen at a time, like the phone app: the list, or one
+/// person's page with a back button. That lets it sit in half of a screen.
+const TWO_PANE_MIN: f32 = 820.;
 
 impl Render for MemiView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let c = self.colors();
+        // The person's name shows in the title only while their page is on screen.
+        let page_showing = f32::from(window.viewport_size().width) >= TWO_PANE_MIN || self.page_open;
         window.set_window_title(&match self.shown_person() {
-            Some(p) if !self.people.is_empty() => format!("{} · Your Memi", p.first_name()),
+            Some(p) if page_showing => format!("{} · Your Memi", p.first_name()),
             _ => "Your Memi".into(),
         });
+        // Nothing focused (after a sheet closes, say): take focus so Escape and shortcuts reach us.
+        if window.focused(cx).is_none() { self.focus.focus(window, cx); }
         div()
+            .track_focus(&self.focus)
             .size_full()
             .relative()
             .bg(c.bg)
@@ -30,12 +38,19 @@ impl Render for MemiView {
             .on_action(cx.listener(MemiView::back))
             .on_action(cx.listener(|this, _: &NewPerson, window, cx| this.open_person_editor(None, window, cx)))
             .on_action(cx.listener(|this, _: &Find, window, cx| this.open_search(window, cx)))
-            .child(
-                div().size_full().flex()
-                    .child(self.list_pane(&c, window, cx))
-                    .child(div().w(px(1.)).h_full().bg(c.line))
-                    .child(self.detail_pane(&c, cx)),
-            )
+            .child({
+                let width = f32::from(window.viewport_size().width);
+                if width >= TWO_PANE_MIN {
+                    div().size_full().flex()
+                        .child(self.list_pane(&c, false, window, cx))
+                        .child(div().w(px(1.)).h_full().bg(c.line))
+                        .child(self.detail_pane(&c, width - LIST_WIDTH - 1., false, cx))
+                } else if self.page_open && self.shown_person().is_some() {
+                    div().size_full().flex().child(self.detail_pane(&c, width, true, cx))
+                } else {
+                    div().size_full().flex().child(self.list_pane(&c, true, window, cx))
+                }
+            })
             .when(self.theme_open, |d| d.child(self.theme_panel(&c, cx)))
             .when(self.overlay.is_some(), |d| d.child(self.overlay_view(&c, window, cx)))
             .when(self.crop.is_some(), |d| d.child(self.crop_view(&c, window, cx)))
@@ -47,7 +62,7 @@ impl Render for MemiView {
 impl MemiView {
     // --- Left: the list pane ---------------------------------------------------------------------
 
-    fn list_pane(&mut self, c: &Colors, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn list_pane(&mut self, c: &Colors, narrow: bool, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let today = dates::today();
         let header = div().flex().items_center().gap(px(10.)).px(px(28.)).pt(px(26.)).pb(px(18.))
             .child(match &self.search {
@@ -96,7 +111,8 @@ impl MemiView {
             }
         }
         let _ = window;
-        div().w(px(LIST_WIDTH)).flex_none().h_full().flex().flex_col().child(header).child(body)
+        let pane = if narrow { div().flex_1().min_w_0() } else { div().w(px(LIST_WIDTH)).flex_none() };
+        pane.h_full().flex().flex_col().child(header).child(body)
     }
 
     fn welcome_tile(&self, c: &Colors, cx: &mut Context<Self>) -> impl IntoElement {
@@ -126,7 +142,7 @@ impl MemiView {
         div().id("upcoming").flex_none().h(px(136.)).rounded(px(28.)).bg(c.gift()).overflow_hidden().flex().cursor_pointer()
             .on_click(cx.listener(move |this, _, window, cx| match cid {
                 Some(cid) => this.open_category(pid, cid, window, cx),
-                None => { this.selected = Some(pid); cx.notify(); }
+                None => { this.selected = Some(pid); this.page_open = true; cx.notify(); }
             }))
             .child(div().flex_1().min_w_0().px(px(20.)).py(px(18.)).flex().flex_col().justify_between()
                 .child(div().flex().child(tag(format!("{} · {}", dates::day_label(u.date, today), dates::in_days(u.date, today)), c.card, c.gift_ink())))
@@ -185,7 +201,7 @@ impl MemiView {
         div().id(("person", p.id as usize)).flex_none().flex().items_center().gap(px(12.)).p(px(8.)).mb(px(4.)).rounded(px(18.)).cursor_pointer()
             .when(selected, |d| d.bg(c.card).border_1().border_color(c.line))
             .when(!selected, |d| d.border_1().border_color(transparent_black()).hover(|s| s.bg(c.card)))
-            .on_click(cx.listener(move |this, _, _, cx| { this.selected = Some(id); cx.notify(); }))
+            .on_click(cx.listener(move |this, _, _, cx| { this.selected = Some(id); this.page_open = true; cx.notify(); }))
             .on_mouse_down(MouseButton::Right, cx.listener(move |this, e: &MouseDownEvent, _, cx| {
                 this.menu = Some(Menu { at: e.position, kind: MenuKind::Person(p2.clone()) });
                 cx.notify();
@@ -225,7 +241,8 @@ impl MemiView {
 
     // --- Right: the person ----------------------------------------------------------------------
 
-    fn detail_pane(&mut self, c: &Colors, cx: &mut Context<Self>) -> AnyElement {
+    /// One person's page. `width` is the space it has; `narrow` adds a back button and tightens it.
+    fn detail_pane(&mut self, c: &Colors, width: f32, narrow: bool, cx: &mut Context<Self>) -> AnyElement {
         let Some(p) = self.shown_person() else {
             return div().flex_1().h_full().flex().items_center().justify_center().flex_col().gap(px(10.))
                 .child(img("mascot.png").size(px(140.)))
@@ -241,8 +258,12 @@ impl MemiView {
         let pid = p.id;
         let p_edit = p.clone();
 
+        let pad = if narrow { 20. } else { 36. };
+        let content = (width.min(860.) - 2. * pad).max(240.);
+        // The photo shrinks with the page so the name and dates keep room beside it.
+        let photo_w = if content < 520. { 140. } else if content < 640. { 180. } else { 220. };
         let photo_card = div().relative().flex_none()
-            .child(photo(&p, 220., 275., 28., c))
+            .child(photo(&p, photo_w, photo_w * 1.25, 28., c))
             .child(div().id("edit-person").absolute().top(px(12.)).left(px(12.)).size(px(38.)).rounded(px(13.)).bg(c.sheet).flex().items_center().justify_center().cursor_pointer()
                 .hover(|s| s.opacity(0.85))
                 .child(icon("pencil", 17., c.ink))
@@ -269,7 +290,7 @@ impl MemiView {
             }
         }
 
-        let header = div().flex().gap(px(24.)).items_start()
+        let header = div().flex().gap(px(if narrow { 18. } else { 24. })).items_start()
             .child(photo_card)
             .child(div().flex_1().min_w_0().flex().flex_col().gap(px(14.)).pt(px(6.))
                 .child(div().flex().flex_col().gap(px(4.))
@@ -278,8 +299,8 @@ impl MemiView {
                 .child(dates_tile)
                 .child(caption(format!("{} open · {} done", open.len(), done.len()), c.muted)));
 
-        // Categories as tiles, three across, plus a dashed "New category" tile.
-        let mut grid = div().grid().grid_cols(3).gap(px(12.));
+        // Categories as tiles, three across (two when space is short), plus a dashed "New category" tile.
+        let mut grid = div().grid().grid_cols(if content < 600. { 2 } else { 3 }).gap(px(12.));
         for cat in &cats {
             grid = grid.child(self.category_tile(&p, cat, c, cx));
         }
@@ -308,8 +329,13 @@ impl MemiView {
                     .child(caption(format!("{} · {}", cname, n.done_at.map(|d| dates::ago(d, today)).unwrap_or_default()), c.muted))));
         }
 
+        let back = div().flex().items_center().gap(px(10.)).mb(px(18.))
+            .child(header_button("back", "chevron-left", false, c)
+                .on_click(cx.listener(|this, _, _, cx| { this.page_open = false; cx.notify(); })))
+            .child(label("Your people", c.muted));
         div().id("detail").flex_1().min_w_0().h_full().overflow_y_scroll()
-            .child(div().max_w(px(860.)).px(px(36.)).pt(px(32.)).pb(px(60.)).flex().flex_col()
+            .child(div().max_w(px(860.)).px(px(pad)).pt(px(if narrow { 20. } else { 32. })).pb(px(60.)).flex().flex_col()
+                .when(narrow, |d| d.child(back))
                 .child(header)
                 .child(div().flex().items_baseline().justify_between().mt(px(32.)).mb(px(12.))
                     .child(section("Categories", c))

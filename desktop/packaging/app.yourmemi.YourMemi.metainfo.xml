@@ -56,7 +56,7 @@
   </branding>
   <content_rating type="oars-1.1"/>
   <requires>
-    <display_length compare="ge">880</display_length>
+    <display_length compare="ge">480</display_length>
   </requires>
   <supports>
     <control>pointing</control>

@@ -132,6 +132,8 @@ pub struct MemiView {
     pub cols: Vec<Collection>,
     pub notes: Vec<Note>,
     pub selected: Option<i64>,
+    /// In the narrow, one-screen layout: a person's page is showing instead of the list.
+    pub page_open: bool,
     pub search: Option<Entity<InputState>>,
     pub query: String,
     pub prefs: Prefs,
@@ -146,6 +148,8 @@ pub struct MemiView {
     push_seq: u64,
     pub system_dark: bool,
     _subs: Vec<Subscription>,
+    /// Holds keyboard focus when no field does, so Escape and the shortcuts always work.
+    pub focus: FocusHandle,
 }
 
 impl MemiView {
@@ -164,10 +168,10 @@ impl MemiView {
             }),
         ];
         let mut this = MemiView {
-            store, sync, dirs, people: vec![], cols: vec![], notes: vec![], selected: None,
+            store, sync, dirs, people: vec![], cols: vec![], notes: vec![], selected: None, page_open: false,
             search: None, query: String::new(), prefs, theme_open: false, overlay: None, crop: None,
             menu: None, toast: None, sync_ui: SyncUi::default(), toast_seq: 0, push_seq: 0,
-            system_dark: is_dark(window.appearance()), _subs: subs,
+            system_dark: is_dark(window.appearance()), _subs: subs, focus: cx.focus_handle(),
         };
         this.sync_ui.settings = this.sync.snapshot();
         this.reload();
@@ -372,7 +376,7 @@ impl MemiView {
         let kept = person.photo_path.clone();
         let adding = e.id.is_none();
         if let Some(id) = self.change(cx, |s| if adding { s.add_person(&person) } else { s.update_person(&person).map(|_| person.id) }) {
-            if adding { self.selected = Some(id); }
+            if adding { self.selected = Some(id); self.page_open = true; }
             if let Some(old) = removed_photo { photos::delete(Some(&old), &self.dirs.photos); }
             self.close_person_editor(kept.as_deref(), cx);
         }
@@ -383,7 +387,7 @@ impl MemiView {
         let name = self.person(id).map(|p| p.first_name().to_string()).unwrap_or_default();
         if self.change(cx, |s| s.delete_person(id)).is_some() {
             photos::delete(photo.as_deref(), &self.dirs.photos);
-            if self.selected == Some(id) { self.selected = None; }
+            if self.selected == Some(id) { self.selected = None; self.page_open = false; }
             self.toast(format!("Removed {name}"), None, cx);
         }
     }
@@ -468,6 +472,7 @@ impl MemiView {
         self._subs.push(sub);
         input.update(cx, |s, cx| s.focus(window, cx));
         self.selected = Some(person_id);
+        self.page_open = true;
         self.search = None;
         self.menu = None;
         self.theme_open = false;
@@ -548,6 +553,9 @@ impl MemiView {
             self.theme_open = false;
         } else if self.search.take().is_some() {
             self.query.clear();
+        } else if self.page_open {
+            // Narrow layout: from a person's page back to the list.
+            self.page_open = false;
         }
         cx.notify();
     }
