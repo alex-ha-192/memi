@@ -138,7 +138,7 @@ impl MemiView {
                     .child(div().absolute().bottom(px(8.)).right(px(8.)).size(px(32.)).rounded(px(11.)).bg(c.sheet).flex().items_center().justify_center()
                         .child(icon("image-plus", 16., c.ink)))
                     .on_click(cx.listener(|this, _, _, cx| this.pick_photo(cx))))
-                .child(div().flex_1().flex().flex_col().gap(px(4.))
+                .child(div().flex_1().min_w_0().flex().flex_col().gap(px(4.))
                     .child(item(if busy { "Opening photo…" } else if has_photo { "Change photo" } else { "Add a photo" }, c.ink))
                     .child(caption("You'll crop it next. JPEG, PNG or WebP.", c.muted))
                     .when(has_photo, |d| d.child(div().flex().gap(px(6.)).mt(px(6.))

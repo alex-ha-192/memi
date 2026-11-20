@@ -102,7 +102,7 @@ impl MemiView {
     fn welcome_tile(&self, c: &Colors, cx: &mut Context<Self>) -> impl IntoElement {
         div().id("welcome").flex_none().rounded(px(28.)).bg(c.gift()).p(px(20.)).flex().items_center().gap(px(8.)).cursor_pointer()
             .on_click(cx.listener(|this, _, window, cx| this.open_person_editor(None, window, cx)))
-            .child(div().flex_1().flex().flex_col().gap(px(6.))
+            .child(div().flex_1().min_w_0().flex().flex_col().gap(px(6.))
                 .child(tile_title("Hi, I'm Memi", c.ink))
                 .child(body("Add someone you care about, then keep their gift ideas, plans and little things to remember in one place.", c.gift_ink()))
                 .child(div().flex().mt(px(8.)).child(tag("+ Add a person", c.card, c.ink))))
@@ -112,7 +112,7 @@ impl MemiView {
     fn quiet_tile(&self, c: &Colors) -> impl IntoElement {
         let fresh = self.notes.iter().filter(|n| n.status == status::OPEN).count();
         div().flex_none().rounded(px(28.)).bg(c.plan()).p(px(20.)).flex().items_center().gap(px(8.))
-            .child(div().flex_1().flex().flex_col().gap(px(6.))
+            .child(div().flex_1().min_w_0().flex().flex_col().gap(px(6.))
                 .child(tile_title("Nothing coming up this month", c.ink))
                 .child(body(format!("{} open across {} {}.", fresh, self.people.len(), if self.people.len() == 1 { "person" } else { "people" }), c.plan_ink())))
             .child(img("mascot.png").size(px(84.)).flex_none())
@@ -467,7 +467,7 @@ impl MemiView {
             let p = super::theme::colors(s.name, c.is_dark);
             let selected = prefs.scheme == s.name;
             let name = s.name;
-            previews = previews.child(div().id(("scheme", i)).flex_1().flex().flex_col().items_center().gap(px(6.)).cursor_pointer()
+            previews = previews.child(div().id(("scheme", i)).flex_1().min_w_0().flex().flex_col().items_center().gap(px(6.)).cursor_pointer()
                 .on_click(cx.listener(move |this, _, _, cx| { let mut p = this.prefs.clone(); p.scheme = name.into(); this.set_prefs(p, cx); }))
                 .child(div().w_full().h(px(80.)).rounded(px(16.)).p(px(if selected { 3. } else { 0. }))
                     .border_2().border_color(if selected { c.ink } else { transparent_black() })
