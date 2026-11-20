@@ -4,6 +4,7 @@
 mod home;
 mod person;
 mod sheets;
+mod welcome;
 pub mod theme;
 mod widgets;
 
@@ -50,13 +51,17 @@ pub fn Root() -> impl IntoView {
             else if a.theme_open.get_untracked() { a.theme_open.set(false); }
             else if a.search.get_untracked().is_some() { a.search.set(None); }
             else if a.page_open.get_untracked() && a.width.get_untracked() < TWO_PANE_MIN { a.page_open.set(false); }
+            else if a.welcome.get_untracked() == Some(crate::state::Welcome::Choice) { a.welcome.set(Some(crate::state::Welcome::Question)); }
         }
     });
 
     let narrow = move || a.width.get() < TWO_PANE_MIN;
     view! {
         <Show when=move || a.loaded.get() fallback=|| view! { <div class="splash"><img src="/memi.png" alt="" /></div> }>
-            <div class="app" class:narrow=narrow>
+            <Show when=move || a.welcome.get().is_some()>
+                <welcome::WelcomeView />
+            </Show>
+            <div class="app" class:narrow=narrow class:hidden=move || a.welcome.get().is_some()>
                 <aside class="list" class:hidden=move || narrow() && a.page_open.get()>
                     <home::Home />
                 </aside>

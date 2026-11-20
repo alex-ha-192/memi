@@ -19,13 +19,19 @@ pub struct Settings {
     /// "system", "light" or "dark".
     pub appearance: String,
     pub fresh_collapsed: bool,
+    /// The first-launch questions are answered (or were skipped: this browser already had people or sync).
+    pub welcomed: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { scheme: "Bento".into(), appearance: "system".into(), fresh_collapsed: false }
+        Settings { scheme: "Bento".into(), appearance: "system".into(), fresh_collapsed: false, welcomed: false }
     }
 }
+
+/// The first-launch questions (see ui/welcome.rs).
+#[derive(Clone, Copy, PartialEq)]
+pub enum Welcome { Question, Choice }
 
 #[derive(Clone, PartialEq)]
 pub enum Overlay {
@@ -79,6 +85,8 @@ pub struct App {
     pub menu: RwSignal<Option<Menu>>,
     /// While dragging to reorder: the uid being dragged and the one it's over.
     pub drag: RwSignal<Option<(String, Option<String>)>>,
+    /// The first-launch questions, while they're showing.
+    pub welcome: RwSignal<Option<Welcome>>,
 }
 
 #[derive(Clone, PartialEq)]
@@ -115,6 +123,7 @@ impl App {
             push_seq: RwSignal::new(0),
             menu: RwSignal::new(None),
             drag: RwSignal::new(None),
+            welcome: RwSignal::new(None),
         }
     }
 
@@ -125,6 +134,11 @@ impl App {
             if let Ok(s) = serde_json::from_str::<Settings>(&text) { self.settings.set(s); }
         }
         self.memi.set(crate::platform::load().await);
+        // Only a browser with nothing in it and sync off is asked; every earlier install is marked as answered.
+        if !self.settings.with_untracked(|s| s.welcomed) {
+            let fresh = self.memi.with_untracked(|m| m.snapshot().people.is_empty() && !m.sync.enabled);
+            if fresh { self.welcome.set(Some(Welcome::Question)); } else { self.update_settings(|s| s.welcomed = true); }
+        }
         self.loaded.set(true);
     }
 

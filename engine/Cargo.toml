@@ -1,6 +1,6 @@
 [package]
 name = "memi-engine"
-version = "0.6.1"
+version = "0.6.2"
 edition = "2021"
 description = "Everything in Memi below the screens: the data, edits, undo, storage interface and sync. Shared by the Android, desktop and web apps."
 license = "GPL-3.0-or-later"
