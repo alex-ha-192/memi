@@ -24,7 +24,7 @@ use ui::app::{Back, Dirs, Find, MemiView, NewPerson};
 
 pub const APP_ID: &str = "app.yourmemi.YourMemi";
 
-/// ~/.local/share/yourmemi on Linux (inside the sandbox under Flatpak), %APPDATA%\YourMemi on Windows.
+/// ~/.local/share/yourmemi on Linux, %APPDATA%\YourMemi on Windows.
 fn data_dir() -> std::path::PathBuf {
     let dirs = directories::ProjectDirs::from("app", "", "YourMemi").expect("a home folder");
     dirs.data_dir().to_path_buf()

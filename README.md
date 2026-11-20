@@ -14,7 +14,7 @@ Everything stays on your own devices. Sync is optional, and when it's on, your d
 |---|---|
 | Android 8+ | The APK from [Releases](../../releases/latest), or [Obtainium](https://obtainium.imranr.dev) for automatic updates: add `https://github.com/alex-ha-192/memi` |
 | Windows 10/11 | `YourMemi-<version>.msi` from [Releases](../../releases/latest). It installs just for you, and a newer one updates it in place |
-| Linux | [Flathub](https://flathub.org/apps/app.yourmemi.YourMemi) (`app.yourmemi.YourMemi`), or `YourMemi-<version>-x86_64.AppImage` from [Releases](../../releases/latest) |
+| Linux | `YourMemi-<version>-x86_64.AppImage` from [Releases](../../releases/latest). AppImage updaters such as [Gear Lever](https://github.com/mijorus/gearlever) can keep it up to date |
 
 The Windows installer isn't code-signed, so SmartScreen may say "Windows protected your PC". Choose **More info › Run anyway**. Smart App Control, if you've switched it on, blocks unsigned installers completely.
 
@@ -76,7 +76,7 @@ Bug reports and pull requests are welcome. For anything large, please open an is
 
 - Keep the app's promise: nothing leaves the device unless the user turns on sync, and then only encrypted. No analytics, crash reporting or new network calls.
 - Android and desktop share formats. A change to the database, backup or sync format needs both sides. `cargo test` covers the desktop half, and `desktop/tests/interop/` checks the desktop crypto against Java's.
-- CI builds every pull request on Android, Windows and Linux, including the Flatpak, and runs an Android screenshot tour on a phone, a phone with large text in dark mode, and a tablet.
+- CI builds every pull request on Android, Windows and Linux, and runs an Android screenshot tour on a phone, a phone with large text in dark mode, and a tablet.
 
 Found a security problem? Please email hello@yourmemi.app rather than opening a public issue. See [SECURITY.md](SECURITY.md).
 
@@ -95,9 +95,8 @@ desktop/src/                      Desktop app (Rust)
   sync/                           crypto, drive, auth (browser sign-in), pairing (computer side), secrets (keyring)
   ui/                             GPUI views: app state, panes, sheets, widgets, theme, assets
 desktop/packaging/                .desktop, metainfo, WiX installer, icons
-flatpak/                          Flathub manifest
 website/                          yourmemi.app
-docs/RELEASING.md                 How releases, Flathub and the website are published
+docs/RELEASING.md                 How releases and the website are published
 ```
 
 ## Not built yet

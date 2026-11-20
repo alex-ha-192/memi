@@ -1,9 +1,7 @@
 # Builds Your Memi everywhere on every push to main:
-#   Android APK, Android screenshots (emulator), Linux binary + AppImage, Windows .msi
-#   .exe, and the Flatpak.
-# Pushing a tag like v0.5.0 also:
-#   - publishes a GitHub Release with every download (Obtainium watches these for the APK)
-#   - opens a pull request on the Flathub repository with the new version (needs FLATHUB_TOKEN)
+#   Android APK, Android screenshots (emulator), Linux binary + AppImage, Windows .msi.
+# Pushing a tag like v0.5.0 also publishes a GitHub Release with every download
+# (Obtainium watches these for the APK; AppImage updaters use the .zsync file).
 name: Build
 
 on:
@@ -175,7 +173,13 @@ jobs:
           curl -sSL -o appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
           chmod +x appimagetool
           mkdir -p out
-          ARCH=x86_64 ./appimagetool --appimage-extract-and-run $D "out/YourMemi-$VERSION-x86_64.AppImage"
+          # The update info lets AppImage updaters (Gear Lever, AppImageUpdate) fetch new releases
+          # from GitHub; appimagetool also writes the .zsync file they download first.
+          ARCH=x86_64 ./appimagetool --appimage-extract-and-run \
+            -u "gh-releases-zsync|alex-ha-192|memi|latest|YourMemi-*-x86_64.AppImage.zsync" \
+            $D "out/YourMemi-$VERSION-x86_64.AppImage"
+          mv -f ./*.AppImage.zsync out/ 2>/dev/null || true
+          ls -la out
           cp desktop/target/release/your-memi "out/your-memi-$VERSION-linux-x86_64"
       - uses: actions/upload-artifact@v4
         with:
@@ -221,70 +225,10 @@ jobs:
           name: windows
           path: out/*
 
-  cargo-sources:
-    name: Flatpak crate sources
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Generate cargo-sources.json
-        run: |
-          pip install --quiet aiohttp tomlkit
-          curl -sSL -o "$RUNNER_TEMP/flatpak-cargo-generator.py" https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/master/cargo/flatpak-cargo-generator.py
-          python3 "$RUNNER_TEMP/flatpak-cargo-generator.py" desktop/Cargo.lock -o flatpak/cargo-sources.json
-      - uses: actions/upload-artifact@v4
-        with:
-          name: cargo-sources
-          path: flatpak/cargo-sources.json
-
-  flatpak:
-    name: Flatpak
-    needs: [version, cargo-sources]
-    runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-25.08
-      # The runner's preinstalled SDKs are mounted so they can be removed: the Rust build needs the space.
-      options: --privileged -v /usr/share/dotnet:/host/dotnet -v /usr/local/lib/android:/host/android -v /opt/hostedtoolcache:/host/toolcache
-    steps:
-      - name: Free disk space
-        run: |
-          rm -rf /host/dotnet/* /host/android/* /host/toolcache/* || true
-          df -h /
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: cargo-sources
-          path: flatpak
-      - name: Build from this checkout
-        run: |
-          # The Flathub manifest builds from a release tag; here, build the code as checked out.
-          python3 - <<'PY'
-          import re
-          p = "flatpak/app.yourmemi.YourMemi.yml"
-          s = open(p).read()
-          s = re.sub(r"      - type: git\n(        .*\n)+?(?=      - cargo-sources.json)", "      - type: dir\n        path: ..\n", s)
-          open(p, "w").write(s)
-          PY
-      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
-        with:
-          bundle: YourMemi-${{ needs.version.outputs.version }}.flatpak
-          manifest-path: flatpak/app.yourmemi.YourMemi.yml
-          cache-key: flatpak-${{ hashFiles('desktop/Cargo.lock') }}
-          upload-artifact: true
-      - name: Flathub linter
-        run: |
-          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-          flatpak install --user -y --noninteractive flathub org.flatpak.Builder
-          # Lint the manifest exactly as it will be submitted (git source), next to its cargo sources.
-          mkdir -p /tmp/lint
-          git show HEAD:flatpak/app.yourmemi.YourMemi.yml > /tmp/lint/app.yourmemi.YourMemi.yml
-          cp flatpak/cargo-sources.json /tmp/lint/
-          echo "== Manifest"; flatpak run --command=flatpak-builder-lint org.flatpak.Builder manifest /tmp/lint/app.yourmemi.YourMemi.yml || echo "::warning::Flathub's linter flagged the manifest (details above)"
-          echo "== Built app"; flatpak run --command=flatpak-builder-lint org.flatpak.Builder repo repo || echo "::warning::Flathub's linter flagged the built app (details above)"
-
   release:
     name: Release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [version, android, linux, windows, flatpak]
+    needs: [version, android, linux, windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -294,7 +238,6 @@ jobs:
       - name: Checksums
         run: |
           cd files
-          rm -f cargo-sources.json
           sha256sum * > SHA256SUMS.txt
           ls -la
       - name: Release notes
@@ -310,6 +253,9 @@ jobs:
             echo '```'
             echo "Add to [Obtainium](https://obtainium.imranr.dev) with this repository's URL for automatic updates."
             echo
+            echo "### Linux"
+            echo "The AppImage can update itself with an AppImage updater such as Gear Lever or AppImageUpdate."
+            echo
             echo "### Windows"
             echo "The installer isn't code-signed: if Windows says it protected your PC, choose More info, then Run anyway."
           } > notes.md
@@ -319,51 +265,3 @@ jobs:
           files: files/*
           body_path: notes.md
           generate_release_notes: true
-
-  flathub:
-    name: Flathub
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [version, release, cargo-sources]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: cargo-sources
-          path: new
-      - name: Files for Flathub
-        env:
-          VERSION: ${{ needs.version.outputs.version }}
-        run: |
-          # Everything Flathub needs, with the source pinned to this release's tag and commit.
-          mkdir -p submission
-          COMMIT=$(git rev-parse HEAD)
-          sed "s|        tag: v.*|        tag: v$VERSION\n        commit: $COMMIT|" flatpak/app.yourmemi.YourMemi.yml > submission/app.yourmemi.YourMemi.yml
-          cp new/cargo-sources.json flatpak/flathub.json submission/
-          grep -q "<release version=\"$VERSION\"" desktop/packaging/app.yourmemi.YourMemi.metainfo.xml \
-            || echo "::warning::The metainfo has no <release version=\"$VERSION\"> entry; Flathub shows release notes from it."
-          cat submission/app.yourmemi.YourMemi.yml | tail -8
-      - uses: actions/upload-artifact@v4
-        with:
-          name: flathub-submission
-          path: submission/
-      - name: Needs a token
-        id: token
-        env:
-          TOKEN: ${{ secrets.FLATHUB_TOKEN }}
-        run: |
-          if [ -z "$TOKEN" ]; then echo "::notice::No FLATHUB_TOKEN secret, so no update was opened on Flathub. The flathub-submission artifact has the files."; echo "skip=true" >> "$GITHUB_OUTPUT"; fi
-      - name: Open a pull request on Flathub
-        if: steps.token.outputs.skip != 'true'
-        env:
-          GH_TOKEN: ${{ secrets.FLATHUB_TOKEN }}
-          VERSION: ${{ needs.version.outputs.version }}
-        run: |
-          git clone "https://x-access-token:${GH_TOKEN}@github.com/flathub/app.yourmemi.YourMemi.git" flathub
-          cd flathub
-          git checkout -b "update-$VERSION"
-          cp ../submission/* .
-          git add -A
-          git -c user.name="Your Memi release bot" -c user.email="noreply@yourmemi.app" commit -m "Update to $VERSION"
-          git push origin "update-$VERSION"
-          gh pr create --repo flathub/app.yourmemi.YourMemi --head "update-$VERSION" --title "Update to $VERSION" --body "Automated update from the Your Memi release."
