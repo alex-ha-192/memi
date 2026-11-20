@@ -163,3 +163,7 @@ footer.site .credits { margin-top: 10px; font-size: 13px; }
   * { transition: none !important; }
   .btn:hover { transform: none; }
 }
+
+.dl .obtainium { display: inline-block; border-radius: 10px; }
+.dl .obtainium img { display: block; height: 48px; width: auto; }
+.dl .small { font-size: 14px; color: var(--muted); }

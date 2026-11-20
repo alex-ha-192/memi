@@ -2,7 +2,7 @@
 <component type="desktop-application">
   <id>app.yourmemi.YourMemi</id>
   <name>Your Memi</name>
-  <summary>Remember the little things about the people you love</summary>
+  <summary>Notes on the people in your life</summary>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
   <developer id="app.yourmemi">
@@ -24,15 +24,18 @@
     <p>
       Everything stays on your computer. If you want your phone and computer to stay in step,
       sync keeps an end-to-end encrypted copy in your own Google Drive, which only your devices
-      can read. There are no accounts, no ads and no tracking.
+      can read. There are no accounts, no ads and no tracking. The privacy policy is at
+      yourmemi.app/privacy.
     </p>
   </description>
+  <provides>
+    <binary>your-memi</binary>
+  </provides>
   <launchable type="desktop-id">app.yourmemi.YourMemi.desktop</launchable>
   <url type="homepage">https://yourmemi.app</url>
   <url type="bugtracker">https://github.com/alex-ha-192/memi/issues</url>
   <url type="vcs-browser">https://github.com/alex-ha-192/memi</url>
-  <url type="privacy-policy">https://yourmemi.app/privacy</url>
-  <url type="contact">mailto:hello@yourmemi.app</url>
+  <url type="contact">https://yourmemi.app/#contact</url>
   <screenshots>
     <screenshot type="default">
       <caption>Your people, what's coming up, and one person's categories</caption>
@@ -61,7 +64,6 @@
   </supports>
   <categories>
     <category>Office</category>
-    <category>Utility</category>
   </categories>
   <keywords>
     <keyword>people</keyword>

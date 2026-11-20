@@ -59,8 +59,11 @@ jobs:
           if [ -n "$KEYSTORE_BASE64" ]; then
             echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/memi.keystore"
             echo "MEMI_KEYSTORE=$RUNNER_TEMP/memi.keystore" >> "$GITHUB_ENV"
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            # A release signed with a throwaway key would fail to update every installed copy (Obtainium included).
+            echo "::error::Releases need the ANDROID_KEYSTORE_BASE64 secret."; exit 1
           else
-            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret, so this APK is signed with a throwaway key. It won't update an installed Your Memi, and Google sign-in won't work. See README > Continuous builds and releases > Secrets."
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret, so this APK is signed with a throwaway key. It won't update an installed Your Memi, and Google sign-in won't work. See docs/RELEASING.md."
           fi
       - name: Build
         env:
@@ -267,6 +270,16 @@ jobs:
           manifest-path: flatpak/app.yourmemi.YourMemi.yml
           cache-key: flatpak-${{ hashFiles('desktop/Cargo.lock') }}
           upload-artifact: true
+      - name: Flathub linter
+        run: |
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user -y --noninteractive flathub org.flatpak.Builder
+          # Lint the manifest exactly as it will be submitted (git source), next to its cargo sources.
+          mkdir -p /tmp/lint
+          git show HEAD:flatpak/app.yourmemi.YourMemi.yml > /tmp/lint/app.yourmemi.YourMemi.yml
+          cp flatpak/cargo-sources.json /tmp/lint/
+          echo "== Manifest"; flatpak run --command=flatpak-builder-lint org.flatpak.Builder manifest /tmp/lint/app.yourmemi.YourMemi.yml || echo "::warning::Flathub's linter flagged the manifest (details above)"
+          echo "== Built app"; flatpak run --command=flatpak-builder-lint org.flatpak.Builder repo repo || echo "::warning::Flathub's linter flagged the built app (details above)"
 
   release:
     name: Release
@@ -284,43 +297,72 @@ jobs:
           rm -f cargo-sources.json
           sha256sum * > SHA256SUMS.txt
           ls -la
+      - name: Release notes
+        run: |
+          # Lets people (and AppVerifier) check the APK is genuine before installing.
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          CERT=$("$APKSIGNER" verify --print-certs files/*.apk | grep -m1 "SHA-256 digest" | awk '{print $NF}' | sed 's/../&:/g; s/:$//' | tr a-f A-F)
+          {
+            echo "### Android"
+            echo "Package \`app.memi\`, signing certificate SHA-256:"
+            echo '```'
+            echo "$CERT"
+            echo '```'
+            echo "Add to [Obtainium](https://obtainium.imranr.dev) with this repository's URL for automatic updates."
+            echo
+            echo "### Windows"
+            echo "The installer isn't code-signed: if Windows says it protected your PC, choose More info, then Run anyway."
+          } > notes.md
+          cat notes.md
       - uses: softprops/action-gh-release@v2
         with:
           files: files/*
+          body_path: notes.md
           generate_release_notes: true
 
   flathub:
-    name: Update Flathub
+    name: Flathub
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [version, release, cargo-sources]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: cargo-sources
+          path: new
+      - name: Files for Flathub
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          # Everything Flathub needs, with the source pinned to this release's tag and commit.
+          mkdir -p submission
+          COMMIT=$(git rev-parse HEAD)
+          sed "s|        tag: v.*|        tag: v$VERSION\n        commit: $COMMIT|" flatpak/app.yourmemi.YourMemi.yml > submission/app.yourmemi.YourMemi.yml
+          cp new/cargo-sources.json flatpak/flathub.json submission/
+          grep -q "<release version=\"$VERSION\"" desktop/packaging/app.yourmemi.YourMemi.metainfo.xml \
+            || echo "::warning::The metainfo has no <release version=\"$VERSION\"> entry; Flathub shows release notes from it."
+          cat submission/app.yourmemi.YourMemi.yml | tail -8
+      - uses: actions/upload-artifact@v4
+        with:
+          name: flathub-submission
+          path: submission/
       - name: Needs a token
         id: token
         env:
           TOKEN: ${{ secrets.FLATHUB_TOKEN }}
         run: |
-          if [ -z "$TOKEN" ]; then echo "::notice::No FLATHUB_TOKEN secret, so Flathub wasn't updated. See README > Flathub."; echo "skip=true" >> "$GITHUB_OUTPUT"; fi
-      - uses: actions/checkout@v4
-        if: steps.token.outputs.skip != 'true'
-      - uses: actions/download-artifact@v4
-        if: steps.token.outputs.skip != 'true'
-        with:
-          name: cargo-sources
-          path: new
+          if [ -z "$TOKEN" ]; then echo "::notice::No FLATHUB_TOKEN secret, so no update was opened on Flathub. The flathub-submission artifact has the files."; echo "skip=true" >> "$GITHUB_OUTPUT"; fi
       - name: Open a pull request on Flathub
         if: steps.token.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ secrets.FLATHUB_TOKEN }}
           VERSION: ${{ needs.version.outputs.version }}
         run: |
-          COMMIT=$(git rev-parse HEAD)
           git clone "https://x-access-token:${GH_TOKEN}@github.com/flathub/app.yourmemi.YourMemi.git" flathub
           cd flathub
           git checkout -b "update-$VERSION"
-          cp ../flatpak/app.yourmemi.YourMemi.yml app.yourmemi.YourMemi.yml
-          sed -i "s|        tag: v.*|        tag: v$VERSION\n        commit: $COMMIT|" app.yourmemi.YourMemi.yml
-          cp ../new/cargo-sources.json cargo-sources.json
+          cp ../submission/* .
           git add -A
           git -c user.name="Your Memi release bot" -c user.email="noreply@yourmemi.app" commit -m "Update to $VERSION"
           git push origin "update-$VERSION"

@@ -6,6 +6,6 @@ Comment=Remember the little things about the people in your life
 Exec=your-memi
 Icon=app.yourmemi.YourMemi
 Terminal=false
-Categories=Office;Utility;
+Categories=Office;
 Keywords=people;gifts;birthdays;ideas;notes;friends;family;
 StartupWMClass=app.yourmemi.YourMemi

@@ -1,8 +1,10 @@
 # Flatpak manifest for Your Memi (the desktop app in ../desktop).
 #
 # The same file is submitted to Flathub. CI (.github/workflows/build.yml) builds it from the
-# checked-out code to make sure it works, and on each release updates the tag, commit and
-# cargo-sources.json, then opens a pull request on the Flathub repository.
+# checked-out code and runs Flathub's linter on it. On each release it pins the tag and commit,
+# regenerates cargo-sources.json, and opens a pull request on the Flathub repository. (There's no
+# x-checker-data: Flathub's bot can't regenerate the Rust dependency list, so it would open
+# update requests that don't build.)
 #
 # Permissions, and why:
 #   network:  only for the optional, end-to-end encrypted sync to your own Google Drive
@@ -47,7 +49,4 @@ modules:
       - type: git
         url: https://github.com/alex-ha-192/memi.git
         tag: v0.5.0
-        x-checker-data:
-          type: git
-          tag-pattern: ^v([\d.]+)$
       - cargo-sources.json
