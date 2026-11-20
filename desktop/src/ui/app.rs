@@ -22,13 +22,23 @@ actions!(memi, [Back, NewPerson, Find]);
 pub enum Appearance { Light, Dark, System }
 
 #[derive(Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Prefs {
     pub scheme: String,
     pub appearance: Appearance,
+    /// Still fresh is folded away on Home.
+    pub fresh_collapsed: bool,
+    /// Birthday reminders: how many days before each birthday to remind you (0 = on the day).
+    /// Empty means off.
+    pub birthday_reminders: Vec<i64>,
+    /// Reminders already shown, so each appears once: "<person uid>:<date>:<days before>".
+    pub reminded: Vec<String>,
 }
 
 impl Default for Prefs {
-    fn default() -> Self { Prefs { scheme: "Bento".into(), appearance: Appearance::System } }
+    fn default() -> Self {
+        Prefs { scheme: "Bento".into(), appearance: Appearance::System, fresh_collapsed: false, birthday_reminders: vec![], reminded: vec![] }
+    }
 }
 
 pub struct Dirs {
@@ -119,6 +129,10 @@ pub struct SyncUi {
     pub settings: sync::Settings,
     pub pairing: Option<Arc<sync::pairing::Offer>>,
     pub pairing_code: Option<String>,
+    /// The six digits another device shows when this one asks for the key.
+    pub pairing_confirm: Option<String>,
+    /// Other devices asking this one for the key.
+    pub joins: Vec<sync::Join>,
     pub typing_key: Option<Entity<InputState>>,
     pub key_shown: Option<String>,
     pub message: Option<String>,
@@ -150,6 +164,8 @@ pub struct MemiView {
     _subs: Vec<Subscription>,
     /// Holds keyboard focus when no field does, so Escape and the shortcuts always work.
     pub focus: FocusHandle,
+    /// The window is in front, so sync checks for changes every few seconds.
+    pub active: bool,
 }
 
 impl MemiView {
@@ -162,9 +178,10 @@ impl MemiView {
                 this.apply_component_theme(cx);
                 cx.notify();
             }),
-            // Coming back to the window brings in changes made on the phone.
+            // Coming back to the window brings in changes made on your other devices.
             cx.observe_window_activation(window, |this, window, cx| {
-                if window.is_window_active() { this.pull(cx); }
+                this.active = window.is_window_active();
+                if this.active { this.pull(cx); }
             }),
         ];
         let mut this = MemiView {
@@ -172,11 +189,13 @@ impl MemiView {
             search: None, query: String::new(), prefs, theme_open: false, overlay: None, crop: None,
             menu: None, toast: None, sync_ui: SyncUi::default(), toast_seq: 0, push_seq: 0,
             system_dark: is_dark(window.appearance()), _subs: subs, focus: cx.focus_handle(),
+            active: window.is_window_active(),
         };
         this.sync_ui.settings = this.sync.snapshot();
         this.reload();
         this.apply_component_theme(cx);
         this.pull(cx);
+        this.keep_in_step(cx);
         this
     }
 
@@ -578,6 +597,7 @@ impl MemiView {
                     Err(e) => this.sync_ui.problem = Some(Problem::Failed(e.to_string())),
                 }
                 this.sync_ui.settings = this.sync.snapshot();
+                this.sync_ui.joins = this.sync.joins.lock().unwrap().clone();
                 this.reload();
                 cx.notify();
             });
@@ -591,7 +611,7 @@ impl MemiView {
         self.push_seq += 1;
         let seq = self.push_seq;
         cx.spawn(async move |this, cx| {
-            cx.background_executor().timer(Duration::from_secs(4)).await;
+            cx.background_executor().timer(Duration::from_secs(2)).await;
             let _ = this.update(cx, |this, cx| {
                 if this.push_seq == seq { this.run_sync(cx, |e| e.sync()); }
             });
@@ -602,14 +622,40 @@ impl MemiView {
         if self.sync.snapshot().enabled { self.run_sync(cx, |e| e.sync()); }
     }
 
+    /// While the window is in front, checks for changes from your other devices every few seconds,
+    /// so edits show up almost as they're made.
+    fn keep_in_step(&mut self, cx: &mut Context<Self>) {
+        cx.spawn(async move |this, cx| loop {
+            cx.background_executor().timer(Duration::from_secs(LIVE_SECONDS)).await;
+            let Ok(()) = this.update(cx, |this, cx| {
+                if this.active && !this.sync_ui.busy && this.sync_ui.problem.is_none() { this.pull(cx); }
+            }) else { return };
+        }).detach();
+    }
+
+    /// Hands the key to a device that asked for it (see memi_core::pairing).
+    pub fn answer_join(&mut self, file_id: String, allow: bool, cx: &mut Context<Self>) {
+        self.sync_ui.joins.retain(|j| j.file_id != file_id);
+        let device_allowed = allow;
+        self.run_sync(cx, move |e| {
+            if device_allowed { e.approve_join(&file_id)?; } else { e.decline_join(&file_id)?; }
+            Ok(None)
+        });
+        if allow { self.toast("Sent. The other device will finish setting up in a few seconds.", None, cx); }
+    }
+
     /// The computer shows a QR code and waits for the phone to answer (up to ten minutes).
     pub fn start_pairing(&mut self, cx: &mut Context<Self>) {
         let offer = Arc::new(sync::pairing::Offer::new());
         self.sync_ui.pairing_code = Some(offer.code());
+        self.sync_ui.pairing_confirm = Some(offer.confirm_code());
         self.sync_ui.pairing = Some(offer.clone());
         cx.notify();
         let engine = self.sync.clone();
         cx.spawn(async move |this, cx| {
+            // Also ask in Drive, so a device without a camera can answer.
+            let (e, o) = (engine.clone(), offer.clone());
+            let _ = cx.background_executor().spawn(async move { e.post_join_request(&o) }).await;
             for _ in 0..200 {
                 cx.background_executor().timer(Duration::from_secs(3)).await;
                 let still_waiting = this.update(cx, |this, _| this.sync_ui.pairing.as_ref().map(|o| Arc::ptr_eq(o, &offer)).unwrap_or(false)).unwrap_or(false);
@@ -620,6 +666,7 @@ impl MemiView {
                     let _ = this.update(cx, |this, cx| {
                         this.sync_ui.pairing = None;
                         this.sync_ui.pairing_code = None;
+                        this.sync_ui.pairing_confirm = None;
                         this.sync_ui.problem = None;
                         this.sync_ui.settings = this.sync.snapshot();
                         this.reload();
@@ -639,10 +686,17 @@ impl MemiView {
     }
 
     pub fn stop_pairing(&mut self) {
-        self.sync_ui.pairing = None;
+        if let Some(offer) = self.sync_ui.pairing.take() {
+            let engine = self.sync.clone();
+            std::thread::spawn(move || engine.cancel_join_request(&offer));
+        }
         self.sync_ui.pairing_code = None;
+        self.sync_ui.pairing_confirm = None;
     }
 }
+
+/// How often the window checks for changes from your other devices while it's in front.
+const LIVE_SECONDS: u64 = 10;
 
 fn is_dark(a: WindowAppearance) -> bool {
     matches!(a, WindowAppearance::Dark | WindowAppearance::VibrantDark)

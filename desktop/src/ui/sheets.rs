@@ -349,8 +349,14 @@ impl MemiView {
             Some(Problem::NeedsKey) => {
                 if self.sync_ui.pairing.is_none() && self.sync_ui.typing_key.is_none() { self.start_pairing(cx); }
                 col = col
-                    .child(body("There's already a Your Memi backup in this Google account. To unlock it here, let your phone pass this computer its key.", c.ink))
-                    .child(body("In Your Memi on your phone: Theme → Sync → Add a computer, then scan this.", c.ink));
+                    .child(body("Your Memi is already syncing on another device. To bring it here, that device hands this computer the key.", c.ink));
+                if let Some(confirm) = self.sync_ui.pairing_confirm.clone() {
+                    col = col.child(div().rounded(px(18.)).bg(c.card).border_1().border_color(c.line).p(px(16.)).flex().flex_col().gap(px(4.))
+                        .child(card_title("On any device that's already syncing", c.ink))
+                        .child(body("Open Memi there. It will ask whether to let this computer join; allow it if it shows:", c.muted))
+                        .child(display(confirm, c).text_size(px(30.))));
+                }
+                col = col.child(body("Or, on your phone: Theme → Sync → Add a computer, then scan this.", c.ink));
                 if let Some(code) = self.sync_ui.pairing_code.clone() {
                     col = col.child(div().flex().flex_col().items_center().gap(px(8.))
                         .child(qr(&code))

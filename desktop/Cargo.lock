@@ -3944,6 +3944,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 
 [[package]]
+name = "memi-core"
+version = "0.6.0"
+dependencies = [
+ "aes-gcm",
+ "anyhow",
+ "base64 0.22.1",
+ "chrono",
+ "flate2",
+ "getrandom 0.2.17",
+ "hkdf",
+ "p256",
+ "rand 0.8.8",
+ "serde_json",
+ "sha2 0.10.9",
+ "zeroize",
+]
+
+[[package]]
 name = "memmap2"
 version = "0.9.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8693,7 +8711,7 @@ dependencies = [
 
 [[package]]
 name = "your-memi"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -8707,6 +8725,7 @@ dependencies = [
  "hkdf",
  "image",
  "keyring",
+ "memi-core",
  "p256",
  "qrcode",
  "rand 0.8.8",

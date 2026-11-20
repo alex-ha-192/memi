@@ -7,10 +7,8 @@
 // No console window on Windows.
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
-mod backup;
-mod dates;
-mod insights;
-mod model;
+// The data model, date rules and Home insights are shared with the web app.
+pub use memi_core::{dates, insights, model};
 mod photos;
 mod store;
 mod sync;

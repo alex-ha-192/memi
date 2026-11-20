@@ -149,7 +149,7 @@ mod tests {
     #[test]
     fn past_one_off_dates_are_gone() {
         let c = Collection {
-            id: 1, person_id: Some(1), name: "Trip".into(), kind: "CUSTOM".into(), slot: 3, sort_order: 3,
+            id: 1, uid: "c1".into(), person_id: Some(1), person_uid: Some("p1".into()), updated_at: 0, name: "Trip".into(), kind: "CUSTOM".into(), slot: 3, sort_order: 3,
             occasion: occasion::DATE.into(), occasion_day: Some(epoch_day(NaiveDate::from_ymd_opt(2026, 1, 1).unwrap())), yearly: false,
         };
         let p = Person::new("Sam");

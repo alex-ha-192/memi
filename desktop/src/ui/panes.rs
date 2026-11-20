@@ -15,6 +15,8 @@ const LIST_WIDTH: f32 = 400.;
 /// Below this width the window shows one screen at a time, like the phone app: the list, or one
 /// person's page with a back button. That lets it sit in half of a screen.
 const TWO_PANE_MIN: f32 = 820.;
+/// How many things the Coming up tile lists.
+const NEXT_EVENTS: usize = 3;
 
 impl Render for MemiView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -84,20 +86,37 @@ impl MemiView {
         if self.search.is_some() {
             body = body.child(self.search_results(c, cx));
         } else {
-            // The big tile: what's coming up, a welcome, or all quiet.
+            // Another device asking for the key comes first: it's waiting.
+            for j in self.sync_ui.joins.clone() {
+                body = body.child(self.join_card(&j, c, cx).mb(px(14.)));
+            }
+            // The big tile: the next few things coming up, a welcome, or all quiet.
+            let events = insights::next_events(&self.people, &self.notes, &self.cols, today, NEXT_EVENTS);
             if self.people.is_empty() {
                 body = body.child(self.welcome_tile(c, cx));
-            } else if let Some(u) = insights::next_up(&self.people, &self.notes, &self.cols, today) {
-                body = body.child(self.upcoming_tile(&u, c, cx));
+            } else if !events.is_empty() {
+                body = body.child(self.events_tile(&events, c, cx));
             } else {
                 body = body.child(self.quiet_tile(c));
             }
 
             let fresh = insights::still_fresh(&self.notes, &self.people, &self.cols, today);
             if !fresh.is_empty() {
-                body = body.child(section("Still fresh", c).mt(px(28.)).mb(px(12.)));
-                for (i, f) in fresh.iter().take(12).enumerate() {
-                    body = body.child(self.fresh_card(i, f, c, cx).mb(px(8.)));
+                let collapsed = self.prefs.fresh_collapsed;
+                body = body.child(div().id("fresh-toggle").flex().items_center().justify_between().mt(px(28.)).mb(px(12.)).cursor_pointer()
+                    .child(div().flex().items_center().gap(px(6.))
+                        .child(section("Still fresh", c))
+                        .child(icon(if collapsed { "chevron-right" } else { "chevron-down" }, 18., c.muted)))
+                    .child(caption(if collapsed { format!("{} hidden", fresh.len().min(12)) } else { "new or due soon".into() }, c.muted))
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        let mut p = this.prefs.clone();
+                        p.fresh_collapsed = !p.fresh_collapsed;
+                        this.set_prefs(p, cx);
+                    })));
+                if !collapsed {
+                    for (i, f) in fresh.iter().take(12).enumerate() {
+                        body = body.child(self.fresh_card(i, f, c, cx).mb(px(8.)));
+                    }
                 }
             }
             if !self.people.is_empty() {
@@ -115,6 +134,19 @@ impl MemiView {
         pane.h_full().flex().flex_col().child(header).child(body)
     }
 
+    fn join_card(&self, j: &crate::sync::Join, c: &Colors, cx: &mut Context<Self>) -> Stateful<Div> {
+        let (allow_id, deny_id) = (j.file_id.clone(), j.file_id.clone());
+        div().id(SharedString::from(format!("join-{}", j.file_id))).flex_none().rounded(px(24.)).bg(c.card).border_1().border_color(c.line).p(px(18.)).flex().flex_col().gap(px(8.))
+            .child(card_title(format!("A {} wants to join your Memi", j.device.to_lowercase()), c.ink))
+            .child(body("Only allow it if it's yours and it shows this number:", c.muted))
+            .child(display(j.confirm.clone(), c).text_size(px(28.)))
+            .child(div().flex().gap(px(8.)).mt(px(4.))
+                .child(primary_button("join-allow", "Allow", true, c).flex_1()
+                    .on_click(cx.listener(move |this, _, _, cx| this.answer_join(allow_id.clone(), true, cx))))
+                .child(secondary_button("join-deny", "Not mine", false, c).flex_1()
+                    .on_click(cx.listener(move |this, _, _, cx| this.answer_join(deny_id.clone(), false, cx)))))
+    }
+
     fn welcome_tile(&self, c: &Colors, cx: &mut Context<Self>) -> impl IntoElement {
         div().id("welcome").flex_none().rounded(px(28.)).bg(c.gift()).p(px(20.)).flex().items_center().gap(px(8.)).cursor_pointer()
             .on_click(cx.listener(|this, _, window, cx| this.open_person_editor(None, window, cx)))
@@ -125,11 +157,45 @@ impl MemiView {
             .child(img("mascot.png").size(px(96.)).flex_none())
     }
 
+    /// The next few birthdays, dated categories and dated plans or notes, soonest first.
+    fn events_tile(&self, events: &[insights::Upcoming], c: &Colors, cx: &mut Context<Self>) -> impl IntoElement {
+        let today = dates::today();
+        let mut tile = div().flex_none().rounded(px(28.)).bg(c.gift()).p(px(18.)).flex().flex_col().gap(px(4.))
+            .child(div().flex().items_center().justify_between().mb(px(4.))
+                .child(caption("COMING UP", c.gift_ink()))
+                .child(img("mascot.png").size(px(34.)).flex_none()));
+        for (i, u) in events.iter().enumerate() {
+            let (pid, cid) = (u.person.id, u.collection.as_ref().map(|c| c.id));
+            let detail = match (&u.note, &u.collection) {
+                (Some(_), Some(col)) => format!("{} · {}", u.person.first_name(), col.name),
+                (Some(_), None) => u.person.first_name().to_string(),
+                (None, col) => {
+                    let what = col.as_ref().map(|c| c.name.to_lowercase()).unwrap_or_else(|| "ideas".into());
+                    match u.open { 0 => format!("Nothing in {what} yet"), 1 => format!("1 thing in {what}"), n => format!("{n} things in {what}") }
+                }
+            };
+            tile = tile.child(div().id(("event", i)).flex().items_center().gap(px(12.)).p(px(8.)).rounded(px(18.)).cursor_pointer()
+                .hover(|s| s.bg(Hsla { a: 0.06, ..c.ink }))
+                .on_click(cx.listener(move |this, _, window, cx| match cid {
+                    Some(cid) => this.open_category(pid, cid, window, cx),
+                    None => { this.selected = Some(pid); this.page_open = true; cx.notify(); }
+                }))
+                .child(div().w(px(58.)).flex_none().flex().flex_col().items_center().justify_center().py(px(6.)).rounded(px(14.)).bg(c.card)
+                    .child(label(dates::short_day_label(u.date, today), c.ink).whitespace_nowrap())
+                    .child(caption(dates::in_days(u.date, today), c.muted).whitespace_nowrap()))
+                .child(div().flex_1().min_w_0().flex().flex_col()
+                    .child(card_title(u.title.clone(), c.ink).truncate())
+                    .child(label(detail, c.gift_ink()).truncate()))
+                .child(photo(&u.person, 40., 40., 12., c)));
+        }
+        tile
+    }
+
     fn quiet_tile(&self, c: &Colors) -> impl IntoElement {
         let fresh = self.notes.iter().filter(|n| n.status == status::OPEN).count();
         div().flex_none().rounded(px(28.)).bg(c.plan()).p(px(20.)).flex().items_center().gap(px(8.))
             .child(div().flex_1().min_w_0().flex().flex_col().gap(px(6.))
-                .child(tile_title("Nothing coming up this month", c.ink))
+                .child(tile_title("Nothing coming up", c.ink))
                 .child(body(format!("{} open across {} {}.", fresh, self.people.len(), if self.people.len() == 1 { "person" } else { "people" }), c.plan_ink())))
             .child(img("mascot.png").size(px(84.)).flex_none())
     }

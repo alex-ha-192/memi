@@ -5,3 +5,6 @@ local.properties
 *.iml
 desktop/target/
 desktop/vendor/
+core/target/
+web/target/
+web/dist/

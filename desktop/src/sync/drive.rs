@@ -1,5 +1,5 @@
 //! The few Google Drive calls sync needs. Everything lives in Drive's hidden app-data folder,
-//! which only Your Memi can see: it doesn't show among your files, and Your Memi can't see them.
+//! which only Memi can see: it doesn't show among your files, and Memi can't see them.
 
 use anyhow::{bail, Context, Result};
 use serde_json::Value;
@@ -22,6 +22,7 @@ impl std::error::Error for Unauthorized {}
 pub struct RemoteFile {
     pub id: String,
     pub modified_time: Option<String>,
+    pub name: String,
 }
 
 pub struct Drive {
@@ -42,7 +43,11 @@ fn check(res: std::result::Result<ureq::Response, ureq::Error>) -> Result<ureq::
 }
 
 fn parse_file(v: &Value) -> Option<RemoteFile> {
-    Some(RemoteFile { id: v.get("id")?.as_str()?.to_string(), modified_time: v.get("modifiedTime").and_then(Value::as_str).map(str::to_string) })
+    Some(RemoteFile {
+        id: v.get("id")?.as_str()?.to_string(),
+        modified_time: v.get("modifiedTime").and_then(Value::as_str).map(str::to_string),
+        name: v.get("name").and_then(Value::as_str).unwrap_or_default().to_string(),
+    })
 }
 
 impl Drive {
@@ -58,9 +63,19 @@ impl Drive {
         let q = format!("name='{}' and trashed=false", name.replace('\\', "\\\\").replace('\'', "\\'"));
         let r = check(self.agent.get(&format!("{API}/files")).set("Authorization", &self.auth())
             .query("spaces", "appDataFolder").query("q", &q)
-            .query("fields", "files(id,modifiedTime)").query("orderBy", "modifiedTime desc").call())?;
+            .query("fields", "files(id,modifiedTime,name)").query("orderBy", "modifiedTime desc").call())?;
         let v: Value = r.into_json()?;
         Ok(v.get("files").and_then(Value::as_array).and_then(|a| a.first()).and_then(parse_file))
+    }
+
+    /// Files whose name starts with `prefix` (join requests), newest first.
+    pub fn list(&self, prefix: &str) -> Result<Vec<RemoteFile>> {
+        let q = format!("name contains '{}' and trashed=false", prefix.replace('\\', "\\\\").replace('\'', "\\'"));
+        let r = check(self.agent.get(&format!("{API}/files")).set("Authorization", &self.auth())
+            .query("spaces", "appDataFolder").query("q", &q).query("pageSize", "20")
+            .query("fields", "files(id,modifiedTime,name)").query("orderBy", "modifiedTime desc").call())?;
+        let v: Value = r.into_json()?;
+        Ok(v.get("files").and_then(Value::as_array).map(|a| a.iter().filter_map(parse_file).filter(|f| f.name.starts_with(prefix)).collect()).unwrap_or_default())
     }
 
     /// The email of the connected Google account, to show in settings.
@@ -88,14 +103,14 @@ impl Drive {
         body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
         let r = check(self.agent.post(&format!("{UPLOAD}/files")).set("Authorization", &self.auth())
             .set("Content-Type", &format!("multipart/related; boundary={boundary}"))
-            .query("uploadType", "multipart").query("fields", "id,modifiedTime").send_bytes(&body))?;
+            .query("uploadType", "multipart").query("fields", "id,modifiedTime,name").send_bytes(&body))?;
         parse_file(&r.into_json()?).context("Unexpected reply from Google Drive")
     }
 
     pub fn update(&self, id: &str, bytes: &[u8]) -> Result<RemoteFile> {
         let r = check(self.agent.request("PATCH", &format!("{UPLOAD}/files/{}", urlenc(id))).set("Authorization", &self.auth())
             .set("Content-Type", "application/octet-stream")
-            .query("uploadType", "media").query("fields", "id,modifiedTime").send_bytes(bytes))?;
+            .query("uploadType", "media").query("fields", "id,modifiedTime,name").send_bytes(bytes))?;
         parse_file(&r.into_json()?).context("Unexpected reply from Google Drive")
     }
 

@@ -1,6 +1,6 @@
 [package]
 name = "your-memi"
-version = "0.5.0"
+version = "0.6.0"
 edition = "2021"
 description = "Remember the little things about the people in your life"
 license = "GPL-3.0-or-later"
@@ -12,6 +12,9 @@ name = "your-memi"
 path = "src/main.rs"
 
 [dependencies]
+# Shared with the web app: model, dates, backup format, merge, encryption, pairing.
+memi-core = { path = "../core" }
+
 # UI: GPUI (the snapshot gpui-component is built against) and its component library for text fields.
 gpui = { package = "gpui-pre", version = "=0.3.12" }
 gpui-platform = { package = "gpui-pre-platform", version = "=0.3.12", features = ["x11", "wayland"] }
