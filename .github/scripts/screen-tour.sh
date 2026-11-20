@@ -17,7 +17,7 @@ settle() {
 }
 run() {
   settle
-  adb shell am instrument -w -e pass "$1" app.memi.test/androidx.test.runner.AndroidJUnitRunner | tail -25
+  adb shell am instrument -w -e pass "$1" app.memi.test/androidx.test.runner.AndroidJUnitRunner | tail -60
 }
 adb shell settings put system font_scale 1.0
 adb shell cmd uimode night no

@@ -7,8 +7,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
@@ -44,9 +46,14 @@ import java.time.ZoneId
  */
 private val pass: String get() = InstrumentationRegistry.getArguments().getString("pass") ?: "phone"
 
-private fun shot(name: String) {
+private fun capture(rule: ComposeTestRule, name: String) {
+    // Compose tests run on a test clock: move it on so sheets, menus and fades finish animating,
+    // then give the real display a moment to draw the result before taking the picture.
+    rule.waitForIdle()
+    rule.mainClock.advanceTimeBy(1500)
+    rule.waitForIdle()
     InstrumentationRegistry.getInstrumentation().waitForIdleSync()
-    Thread.sleep(900) // let sheets and fades settle
+    Thread.sleep(600)
     val bmp = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot() ?: return
     val app = ApplicationProvider.getApplicationContext<MemiApp>()
     val dir = File(app.filesDir, "shots").apply { mkdirs() }
@@ -58,6 +65,7 @@ private fun shot(name: String) {
 class ScreenTour {
     @get:Rule val rule = createAndroidComposeRule<MainActivity>()
     private val app get() = ApplicationProvider.getApplicationContext<MemiApp>()
+    private fun shot(name: String) = capture(rule, name)
 
     @Before
     fun seed() = runBlocking {
@@ -79,30 +87,32 @@ class ScreenTour {
     }
 
     private fun text(t: String): SemanticsNodeInteraction = rule.onAllNodesWithText(t, substring = true, useUnmergedTree = true).onFirst()
+    /** Exactly this text, e.g. a person's name under their photo in Everyone. */
+    private fun exact(t: String): SemanticsNodeInteraction = rule.onAllNodesWithText(t, useUnmergedTree = true).onFirst()
     private fun desc(d: String): SemanticsNodeInteraction = rule.onAllNodesWithContentDescription(d).onFirst()
 
     @Test fun t01_home() { text("Maya"); shot("01-home") }
 
-    @Test fun t02_person() { text("Maya").performClick(); shot("02-person") }
+    @Test fun t02_person() { exact("Maya").performClick(); shot("02-person") }
 
     @Test fun t03_category() {
-        text("Maya").performClick(); text("Gift ideas").performClick(); shot("03-category-sheet")
+        exact("Maya").performClick(); text("Gift ideas").performClick(); shot("03-category-sheet")
         text("blue ceramic mug").performTouchInput { longClick() }; shot("04-note-menu")
         text("Edit").performClick(); shot("05-note-editor")
     }
 
     @Test fun t04_newCategory() {
-        text("Maya").performClick(); text("New category").performClick(); shot("06-category-editor")
+        exact("Maya").performClick(); text("New category").performClick(); shot("06-category-editor")
         text("A date").performClick(); shot("07-date-picker")
     }
 
     @Test fun t05_personMenu() {
-        text("Maya").performTouchInput { longClick() }; shot("08-person-menu")
+        exact("Maya").performTouchInput { longClick() }; shot("08-person-menu")
         text("Edit").performClick(); shot("09-person-editor")
     }
 
     @Test fun t06_removePerson() {
-        text("Maya").performTouchInput { longClick() }; text("Remove").performClick(); shot("10-remove-dialog")
+        exact("Maya").performTouchInput { longClick() }; text("Remove").performClick(); shot("10-remove-dialog")
     }
 
     @Test fun t07_themesAndSync() {
@@ -111,12 +121,12 @@ class ScreenTour {
     }
 
     @Test fun t08_search() {
-        desc("Search").performClick(); rule.onAllNodesWithText("Search people and notes", useUnmergedTree = true).onFirst().performTextInput("mug")
+        desc("Search").performClick(); rule.onAllNodes(hasSetTextAction()).onFirst().performTextInput("mug")
         shot("13-search")
     }
 
     @Test fun t09_toast() {
-        text("Maya").performClick(); text("Gift ideas").performClick()
+        exact("Maya").performClick(); text("Gift ideas").performClick()
         text("Signed copy").performTouchInput { longClick() }; text("hit").performClick(); shot("14-marked-hit")
     }
 }
@@ -125,6 +135,7 @@ class ScreenTour {
 @RunWith(AndroidJUnit4::class)
 class CropTour {
     @get:Rule val rule = createComposeRule()
+    private fun shot(name: String) = capture(rule, name)
 
     private fun samplePhoto(): ImageBitmap {
         val bmp = Bitmap.createBitmap(1600, 1200, Bitmap.Config.ARGB_8888)
