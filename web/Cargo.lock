@@ -1193,6 +1193,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "memi-engine"
+version = "0.6.1"
+dependencies = [
+ "anyhow",
+ "memi-core",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "memi-web"
 version = "0.6.0"
 dependencies = [
@@ -1203,6 +1213,7 @@ dependencies = [
  "js-sys",
  "leptos",
  "memi-core",
+ "memi-engine",
  "qrcode",
  "serde",
  "serde_json",
