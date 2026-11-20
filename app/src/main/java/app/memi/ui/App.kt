@@ -134,6 +134,8 @@ private fun Content(vm: AppViewModel) {
     }
 
     val freshCollapsed by vm.freshCollapsed.collectAsStateWithLifecycle()
+    val reminders by vm.birthdayReminders.collectAsStateWithLifecycle()
+    val context = androidx.compose.ui.platform.LocalContext.current
     val model = remember(people, notes, collections, freshCollapsed, syncState.joins) {
         HomeModel(people, notes, collections, freshCollapsed, syncState.joins)
     }
@@ -296,6 +298,8 @@ private fun Content(vm: AppViewModel) {
                     else -> "Off"
                 },
                 onSync = { themesOpen = false; dialog = Dialog.Sync },
+                reminders = reminders,
+                onReminders = { vm.setBirthdayReminders(context, it) },
                 modifier = (if (twoPane) Modifier.width(ListPaneWidth) else Modifier.fillMaxWidth())
                     .onGloballyPositioned { panelBounds = it.boundsInRoot() }
                     .navigationBarsPadding(),

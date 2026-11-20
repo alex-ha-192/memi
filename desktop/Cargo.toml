@@ -29,6 +29,9 @@ directories = "5"
 uuid = { version = "1", features = ["v4"] }
 anyhow = "1"
 
+# Birthday reminders while the app is open (D-Bus on Linux, toast notifications on Windows).
+notify-rust = "4"
+
 # Photos
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif", "bmp"] }
 rfd = { version = "0.15", default-features = false, features = ["xdg-portal", "async-std"] }

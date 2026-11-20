@@ -56,6 +56,8 @@ fun ThemePanel(
     onAppearance: (Appearance) -> Unit,
     syncDetail: String,
     onSync: () -> Unit,
+    reminders: Set<Int>,
+    onReminders: (Set<Int>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = Bento.colors
@@ -105,6 +107,8 @@ fun ThemePanel(
             ModeOption("Dark", Icons.Rounded.DarkMode, choice.appearance == Appearance.DARK, Modifier.weight(1f)) { onAppearance(Appearance.DARK) }
             ModeOption("System", Icons.Rounded.PhoneAndroid, choice.appearance == Appearance.SYSTEM, Modifier.weight(1f)) { onAppearance(Appearance.SYSTEM) }
         }
+        Spacer(Modifier.height(16.dp))
+        BirthdayReminderChoice(reminders, onReminders)
         Spacer(Modifier.height(10.dp))
         Row(
             Modifier
@@ -121,6 +125,61 @@ fun ThemePanel(
             Spacer(Modifier.width(10.dp))
             Text(syncDetail, style = BentoType.label, color = colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = colors.muted)
+        }
+    }
+}
+
+/**
+ * Birthday reminders: any of on the day, the day before and a week before; none is off. Turning
+ * one on asks for permission to show notifications (Android 13+) the first time.
+ */
+@Composable
+private fun BirthdayReminderChoice(days: Set<Int>, onChange: (Set<Int>) -> Unit) {
+    val colors = Bento.colors
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var pending by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<Set<Int>?>(null) }
+    var denied by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    val ask = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        denied = !granted
+        pending?.let { if (granted) onChange(it) }
+        pending = null
+    }
+    fun toggle(d: Int) {
+        val next = if (d in days) days - d else days + d
+        if (next.isNotEmpty() && !app.memi.platform.BirthdayReminders.canNotify(context) && android.os.Build.VERSION.SDK_INT >= 33) {
+            pending = next
+            ask.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        } else onChange(next)
+    }
+    Row(verticalAlignment = Alignment.Bottom) {
+        Text("Birthday reminders", style = BentoType.cardTitle, color = colors.ink, modifier = Modifier.weight(1f))
+        Text(
+            when {
+                denied -> "Notifications are off for Memi"
+                days.isEmpty() -> "Off"
+                else -> "Around 9 am"
+            },
+            style = BentoType.label, color = if (denied) colors.danger else colors.muted,
+        )
+    }
+    Spacer(Modifier.height(8.dp))
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(colors.track).padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        listOf(0 to "On the day", 1 to "Day before", 7 to "Week before").forEach { (d, text) ->
+            val on = d in days
+            val pill = if (colors.isDark) Color.White.copy(alpha = 0.12f) else colors.sheet
+            val bg by animateColorAsState(if (on) pill else Color.Transparent, Motion.colour(), label = "remindBg")
+            Box(
+                Modifier.weight(1f).height(40.dp).clip(RoundedCornerShape(14.dp)).background(bg)
+                    .clickable(role = Role.Checkbox) { toggle(d) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(text, style = BentoType.label, color = if (on) colors.ink else colors.muted, maxLines = 1)
+            }
         }
     }
 }

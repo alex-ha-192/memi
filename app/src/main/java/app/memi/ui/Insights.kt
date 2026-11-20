@@ -115,6 +115,37 @@ object Insights {
         return all.sortedWith(compareBy({ it.date }, { !it.isBirthday }, { it.note != null })).take(count)
     }
 
+    /** Days before a birthday that reminders can be set for: on the day, the day before, a week before. */
+    val REMINDER_DAYS = listOf(0, 1, 7)
+
+    /** A birthday reminder that's due. [key] is remembered once shown, so each appears once. */
+    data class Reminder(val person: Person, val key: String, val title: String, val body: String)
+
+    /** The birthday reminders due today for the chosen [days]. Same wording as core/src/insights.rs. */
+    fun remindersDue(
+        people: List<Person>,
+        notes: List<Note>,
+        collections: List<NoteCollection>,
+        days: Set<Int>,
+        today: LocalDate = Dates.today(),
+    ): List<Reminder> = people.mapNotNull { p ->
+        val date = Dates.nextBirthday(p, today) ?: return@mapNotNull null
+        val before = ChronoUnit.DAYS.between(today, date).toInt()
+        if (before !in days) return@mapNotNull null
+        val name = p.firstName
+        val age = Dates.turningAge(p, today)
+        val title = when (before) {
+            0 -> if (age != null) "$name turns $age today" else "It's $name's birthday today"
+            1 -> if (age != null) "$name turns $age tomorrow" else "$name's birthday is tomorrow"
+            else -> if (age != null) "$name turns $age in a week" else "$name's birthday is in a week"
+        }
+        val gift = collections.filter { it.personId == p.id && it.occasion == Occasion.BIRTHDAY }
+        val open = notes.count { n -> n.status == Status.OPEN && gift.any { it.id == n.collectionId } }
+        val what = gift.firstOrNull()?.name?.lowercase() ?: "gift ideas"
+        val body = when (open) { 0 -> "Nothing in $what yet."; 1 -> "1 thing in $what."; else -> "$open things in $what." }
+        Reminder(p, "${p.uid}:$date:$before", title, body)
+    }
+
     fun openCount(person: Person, notes: List<Note>): Int =
         notes.count { it.personId == person.id && it.status == Status.OPEN }
 }

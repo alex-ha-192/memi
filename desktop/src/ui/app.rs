@@ -196,6 +196,7 @@ impl MemiView {
         this.apply_component_theme(cx);
         this.pull(cx);
         this.keep_in_step(cx);
+        this.check_reminders(cx);
         this
     }
 
@@ -629,8 +630,36 @@ impl MemiView {
             cx.background_executor().timer(Duration::from_secs(LIVE_SECONDS)).await;
             let Ok(()) = this.update(cx, |this, cx| {
                 if this.active && !this.sync_ui.busy && this.sync_ui.problem.is_none() { this.pull(cx); }
+                this.check_reminders(cx);
             }) else { return };
         }).detach();
+    }
+
+    /// Shows any birthday reminders that are due and haven't been shown yet (while the app is open).
+    pub fn check_reminders(&mut self, cx: &mut Context<Self>) {
+        if self.prefs.birthday_reminders.is_empty() { return; }
+        let due = crate::insights::reminders_due(&self.people, &self.notes, &self.cols, dates::today(), &self.prefs.birthday_reminders);
+        let new: Vec<_> = due.into_iter().filter(|r| !self.prefs.reminded.contains(&r.key)).collect();
+        if new.is_empty() { return; }
+        let mut prefs = self.prefs.clone();
+        for r in new {
+            prefs.reminded.push(r.key);
+            let (title, body) = (r.title, r.body);
+            // Showing a notification can wait on the system, so it happens off the UI thread.
+            std::thread::spawn(move || {
+                let mut n = notify_rust::Notification::new();
+                n.appname("Memi").summary(&title).body(&body);
+                #[cfg(target_os = "windows")]
+                n.app_id("app.yourmemi.YourMemi");
+                #[cfg(target_os = "linux")]
+                n.icon("app.yourmemi.YourMemi");
+                let _ = n.show();
+            });
+        }
+        // Only recent ones matter; each key includes its date.
+        let extra = prefs.reminded.len().saturating_sub(100);
+        prefs.reminded.drain(..extra);
+        self.set_prefs(prefs, cx);
     }
 
     /// Hands the key to a device that asked for it (see memi_core::pairing).

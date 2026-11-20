@@ -138,8 +138,71 @@ pub fn next_events(people: &[Person], notes: &[Note], cols: &[Collection], today
     all
 }
 
+/// Days before a birthday that reminders can be set for: on the day, the day before, a week before.
+pub const REMINDER_DAYS: [i64; 3] = [0, 1, 7];
+
+/// A birthday reminder that's due.
+pub struct Reminder {
+    pub person: Person,
+    pub date: NaiveDate,
+    pub days_before: i64,
+    /// Remembered once shown, so each reminder appears once: "<person uid>:<date>:<days before>".
+    pub key: String,
+    pub title: String,
+    pub body: String,
+}
+
+/// The birthday reminders due today for the chosen `days` (any of [REMINDER_DAYS]).
+pub fn reminders_due(people: &[Person], notes: &[Note], cols: &[Collection], today: NaiveDate, days: &[i64]) -> Vec<Reminder> {
+    let mut out = vec![];
+    for p in people {
+        let Some(date) = dates::next_birthday(p, today) else { continue };
+        let before = dates::days_until(date, today);
+        if !days.contains(&before) { continue; }
+        let name = p.first_name();
+        let title = match (before, dates::turning_age(p, today)) {
+            (0, Some(age)) => format!("{name} turns {age} today"),
+            (0, None) => format!("It's {name}'s birthday today"),
+            (1, Some(age)) => format!("{name} turns {age} tomorrow"),
+            (1, None) => format!("{name}'s birthday is tomorrow"),
+            (_, Some(age)) => format!("{name} turns {age} in a week"),
+            (_, None) => format!("{name}'s birthday is in a week"),
+        };
+        let gift: Vec<&Collection> = cols.iter().filter(|c| c.person_id == Some(p.id) && c.occasion == occasion::BIRTHDAY).collect();
+        let open = notes.iter().filter(|n| n.status == status::OPEN && gift.iter().any(|c| c.id == n.collection_id)).count();
+        let what = gift.first().map(|c| c.name.to_lowercase()).unwrap_or_else(|| "gift ideas".into());
+        let body = match open { 0 => format!("Nothing in {what} yet."), 1 => format!("1 thing in {what}."), n => format!("{n} things in {what}.") };
+        out.push(Reminder { key: format!("{}:{date}:{before}", p.uid), person: p.clone(), date, days_before: before, title, body });
+    }
+    out
+}
+
 pub fn open_count(person_id: i64, notes: &[Note]) -> usize {
     notes.iter().filter(|n| n.person_id == person_id && n.status == status::OPEN).count()
+}
+
+#[cfg(test)]
+mod reminder_tests {
+    use super::*;
+
+    #[test]
+    fn reminders_on_the_chosen_days() {
+        let today = NaiveDate::from_ymd_opt(2026, 11, 20).unwrap();
+        let mut maya = Person::new("Maya Okafor");
+        maya.uid = "m".into();
+        (maya.birthday_month, maya.birthday_day, maya.birth_year) = (Some(11), Some(27), Some(1994));
+        let mut sam = Person::new("Sam");
+        sam.uid = "s".into();
+        (sam.birthday_month, sam.birthday_day) = (Some(11), Some(20));
+        let people = vec![maya, sam];
+        let r = reminders_due(&people, &[], &[], today, &[0]);
+        assert_eq!(r.len(), 1);
+        assert_eq!(r[0].title, "It's Sam's birthday today");
+        assert_eq!(r[0].key, "s:2026-11-20:0");
+        let r = reminders_due(&people, &[], &[], today, &[7]);
+        assert_eq!(r[0].title, "Maya turns 32 in a week");
+        assert!(reminders_due(&people, &[], &[], today, &[]).is_empty());
+    }
 }
 
 #[cfg(test)]

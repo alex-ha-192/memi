@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -33,4 +34,16 @@ class ThemePrefs(private val store: DataStore<Preferences>) {
     /** Still fresh on Home is folded away. */
     val freshCollapsed: Flow<Boolean> = store.data.map { it[freshCollapsedKey] ?: false }
     suspend fun setFreshCollapsed(collapsed: Boolean) = store.edit { it[freshCollapsedKey] = collapsed }
+
+    private val remindersKey = stringSetPreferencesKey("birthdayReminders")
+    /** Days before a birthday to be reminded (0, 1, 7). Empty means off, the default. */
+    val birthdayReminders: Flow<Set<Int>> = store.data.map { p -> p[remindersKey].orEmpty().mapNotNull { it.toIntOrNull() }.toSet() }
+    suspend fun setBirthdayReminders(days: Set<Int>) = store.edit { it[remindersKey] = days.map { d -> d.toString() }.toSet() }
+
+    private val remindedKey = stringSetPreferencesKey("reminded")
+    val reminded: Flow<Set<String>> = store.data.map { it[remindedKey].orEmpty() }
+    suspend fun addReminded(keys: Collection<String>) = store.edit { p ->
+        // Only recent ones matter; each key ends with its date and days before.
+        p[remindedKey] = (p[remindedKey].orEmpty() + keys).sortedBy { it.substringAfter(':') }.takeLast(100).toSet()
+    }
 }

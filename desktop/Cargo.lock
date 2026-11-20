@@ -8726,6 +8726,7 @@ dependencies = [
  "image",
  "keyring",
  "memi-core",
+ "notify-rust",
  "p256",
  "qrcode",
  "rand 0.8.8",

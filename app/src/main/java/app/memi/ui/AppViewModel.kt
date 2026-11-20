@@ -34,6 +34,15 @@ class AppViewModel(private val repo: Repository, private val prefs: ThemePrefs) 
 
     fun toggleFresh() = viewModelScope.launch { prefs.setFreshCollapsed(!freshCollapsed.value) }
 
+    /** Days before a birthday to be reminded (0, 1, 7); empty is off. */
+    val birthdayReminders: StateFlow<Set<Int>> = prefs.birthdayReminders.stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+
+    fun setBirthdayReminders(context: android.content.Context, days: Set<Int>) = viewModelScope.launch {
+        prefs.setBirthdayReminders(days)
+        app.memi.platform.BirthdayReminders.schedule(context.applicationContext, days.isNotEmpty())
+        app.memi.platform.BirthdayReminders.check(context.applicationContext)
+    }
+
     private val _toast = MutableStateFlow<Toast?>(null)
     val toast: StateFlow<Toast?> = _toast.asStateFlow()
     private var toastJob: Job? = null

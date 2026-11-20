@@ -13,7 +13,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import app.memi.platform.BirthdayReminders
 
 private val android.content.Context.settingsStore by preferencesDataStore(name = "settings")
 
@@ -34,6 +36,11 @@ class MemiApp : Application() {
         repository = Repository(db)
         themePrefs = ThemePrefs(settingsStore)
         sync = SyncManager(AndroidSyncPlatform(this), db, appScope)
+
+        // Birthday reminders (off unless turned on): keep the daily check scheduled.
+        appScope.launch {
+            BirthdayReminders.schedule(this@MemiApp, themePrefs.birthdayReminders.first().isNotEmpty())
+        }
 
         // Any change to people, categories or notes queues an encrypted upload.
         appScope.launch {

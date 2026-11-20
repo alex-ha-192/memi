@@ -577,6 +577,19 @@ impl MemiView {
                 .child(icon(ic, 15., c.ink)).child(label(text.to_string(), c.ink))
                 .on_click(cx.listener(move |this, _, _, cx| { let mut p = this.prefs.clone(); p.appearance = a; this.set_prefs(p, cx); }))
         };
+        let reminder = |id: &'static str, text: &str, days: i64| {
+            let on = prefs.birthday_reminders.contains(&days);
+            div().id(id).flex_1().h(px(36.)).rounded(px(12.)).flex().items_center().justify_center().cursor_pointer()
+                .when(on, |d| d.bg(c.sheet).shadow_sm())
+                .child(label(text.to_string(), if on { c.ink } else { c.muted }))
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    let mut p = this.prefs.clone();
+                    if p.birthday_reminders.contains(&days) { p.birthday_reminders.retain(|d| *d != days); } else { p.birthday_reminders.push(days); }
+                    p.birthday_reminders.sort();
+                    this.set_prefs(p, cx);
+                    this.check_reminders(cx);
+                }))
+        };
         let sync_detail = match (&self.sync_ui.problem, &self.sync_ui.settings) {
             (Some(_), s) if s.enabled => "Needs a look".to_string(),
             (_, s) if s.enabled => s.account.clone().unwrap_or_else(|| "On".into()),
@@ -592,6 +605,14 @@ impl MemiView {
                 .child(mode("light", "Light", "sun", Appearance::Light))
                 .child(mode("dark", "Dark", "moon", Appearance::Dark))
                 .child(mode("system", "System", "monitor", Appearance::System)))
+            .child(div().flex().flex_col().gap(px(8.))
+                .child(div().flex().items_baseline().justify_between()
+                    .child(card_title("Birthday reminders", c.ink))
+                    .child(caption(if prefs.birthday_reminders.is_empty() { "Off" } else { "While Memi is open" }, c.muted)))
+                .child(div().flex().gap(px(4.)).p(px(4.)).rounded(px(16.)).bg(c.track)
+                    .child(reminder("remind-0", "On the day", 0))
+                    .child(reminder("remind-1", "Day before", 1))
+                    .child(reminder("remind-7", "Week before", 7))))
             .child(div().id("sync-row").flex().items_center().gap(px(12.)).px(px(16.)).py(px(13.)).rounded(px(16.)).bg(c.card).border_1().border_color(c.line).cursor_pointer()
                 .hover(|s| s.opacity(0.9))
                 .child(icon("cloud", 19., c.ink))
