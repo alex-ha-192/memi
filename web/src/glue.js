@@ -37,6 +37,24 @@ export function persistStorage() {
 
 // --- Google sign-in -----------------------------------------------------------------------------
 
+let gisLoading = null;
+
+/** Loads Google's sign-in script, only once you open Sync or sync is already on. */
+export function loadGis() {
+  if (gisReady()) return Promise.resolve();
+  if (!gisLoading) {
+    gisLoading = new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = "https://accounts.google.com/gsi/client";
+      s.async = true;
+      s.onload = () => resolve();
+      s.onerror = () => { gisLoading = null; reject("Couldn't load Google sign-in. Check your connection."); };
+      document.head.appendChild(s);
+    });
+  }
+  return gisLoading;
+}
+
 export function gisReady() {
   return !!(window.google && google.accounts && google.accounts.oauth2);
 }

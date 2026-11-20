@@ -14,6 +14,8 @@ extern "C" {
     #[wasm_bindgen(js_name = persistStorage)]
     pub fn persist_storage();
 
+    #[wasm_bindgen(js_name = loadGis)]
+    fn load_gis_raw() -> js_sys::Promise;
     #[wasm_bindgen(js_name = gisReady)]
     pub fn gis_ready() -> bool;
     #[wasm_bindgen(js_name = gisRequest)]
@@ -80,6 +82,11 @@ pub async fn gis_request(client_id: &str, hint: &str, prompt: &str) -> anyhow::R
         value: json["token"].as_str().unwrap_or_default().to_string(),
         expires_in: json["expiresIn"].as_f64().unwrap_or(3600.),
     })
+}
+
+/// Loads Google's sign-in script (see glue.js `loadGis`).
+pub async fn load_gis() -> bool {
+    JsFuture::from(load_gis_raw()).await.is_ok()
 }
 
 pub async fn crop_photo(file: &web_sys::File) -> anyhow::Result<Vec<u8>> {

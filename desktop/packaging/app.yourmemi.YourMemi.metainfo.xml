@@ -72,6 +72,18 @@
     <keyword>notes</keyword>
   </keywords>
   <releases>
+    <release version="0.6.0" date="2026-11-20">
+      <description>
+        <p>Your devices now stay in step on their own, and every edit is kept: Memi merges changes item by item instead of keeping only the latest copy.</p>
+        <ul>
+          <li>Start on any device: a new one asks your other devices for the key, and you allow it with a six-digit code</li>
+          <li>Memi in your browser at memi.yourmemi.app</li>
+          <li>Optional birthday reminders, on the day, the day before or a week before</li>
+          <li>Drag people, categories and notes into your own order</li>
+          <li>Coming up shows the next three birthdays, dated categories and plans; Still fresh can be folded away</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.5.1" date="2026-11-20">
       <description>
         <p>Lost your recovery key? You can now start sync over from the Sync screen. Your Memi makes a new key and a fresh backup from what's on this device, and your other devices ask for the new key.</p>

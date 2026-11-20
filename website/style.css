@@ -112,7 +112,7 @@ p.sub { color: var(--muted); margin: 0 0 26px; max-width: 38em; }
 .isnt .tile { min-height: 0; }
 
 /* Downloads */
-.downloads { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.downloads { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
 .dl { border-radius: 28px; padding: 26px; background: var(--card); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
 .dl h3 { margin: 0 0 4px; font-size: 22px; font-weight: 800; letter-spacing: -.015em; }
 .dl p { margin: 0 0 10px; color: var(--muted); font-size: 15px; }

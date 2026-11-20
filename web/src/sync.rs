@@ -56,6 +56,7 @@ fn set_problem(app: App, p: Option<Problem>) { app.sync.update(|s| s.problem = p
 /// Called once at start: checks every few seconds while the tab is visible.
 pub fn start(app: App) {
     spawn_local(async move {
+        if app.settings.with_untracked(|s| s.sync.enabled) { js::load_gis().await; }
         loop {
             gloo_timers::future::TimeoutFuture::new(LIVE_SECONDS * 1_000).await;
             let on = app.settings.with_untracked(|s| s.sync.enabled);

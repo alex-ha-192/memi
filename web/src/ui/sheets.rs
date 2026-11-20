@@ -336,6 +336,8 @@ fn ConfirmSheet(what: Confirm) -> impl IntoView {
 #[component]
 fn SyncSheet() -> impl IntoView {
     let a = app();
+    // Google's sign-in script loads now, so the button below opens its window straight away.
+    spawn_local(async { js::load_gis().await; });
     let key_text = RwSignal::new(String::new());
     let wrong = RwSignal::new(false);
     let shown_key = RwSignal::new(None::<String>);

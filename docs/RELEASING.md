@@ -37,6 +37,10 @@ Under Settings › Secrets and variables › Actions:
 | `CLOUDFLARE_API_TOKEN` | Website deploys: a Cloudflare token with Account › Cloudflare Pages › Edit |
 | `CLOUDFLARE_ACCOUNT_ID` | Website deploys: the Cloudflare account ID |
 
+| Variable (not secret) | Used for |
+|---|---|
+| `MEMI_WEB_CLIENT_ID` | The web app's Google OAuth client ID. Without it the web app works, but Sync is off. Never add the client secret anywhere: browser sign-in doesn't use it. |
+
 Without the Android secrets, untagged builds are signed with a throwaway key: the APK runs, but it can't update an installed copy or sign in to Google.
 
 ## Google sign-in
@@ -45,6 +49,9 @@ The Google Cloud project has the Drive API enabled and a consent screen that ask
 
 - **Android:** an Android client for package `app.memi` for each signing key's SHA-1 (the release key, and any debug key used for development).
 - **Desktop:** a Desktop app client, committed as `desktop/google-client.json`.
+- **Web:** a Web application client with the authorised JavaScript origin `https://memi.yourmemi.app` (no redirect URIs), whose ID is the `MEMI_WEB_CLIENT_ID` variable.
+
+All clients must be in the **same** Google Cloud project: Drive's hidden app folder belongs to the project, so a client from another project sees an empty folder.
 
 ## AppImage updates
 
@@ -57,3 +64,7 @@ Obtainium reads GitHub Releases directly, so nothing else is needed. The website
 ## Website
 
 `website/` is plain HTML and CSS, deployed to Cloudflare Pages (project `yourmemi`) by `.github/workflows/website.yml` whenever it changes. Security headers are in `website/_headers`. Keep Cloudflare's Web Analytics, Email Address Obfuscation and Rocket Loader off: the privacy policy promises no analytics, and the other two rewrite the pages.
+
+## Web app
+
+`web/` is built with [Trunk](https://trunkrs.dev) by `.github/workflows/web.yml` on every change to `web/` or `core/`, and deployed from `main` to the Cloudflare Pages project `memi-web`, served at `memi.yourmemi.app` (Pages › memi-web › Custom domains). Each build is also pushed to the `ci-web` branch. Its headers (including a strict Content-Security-Policy that allows only Google's sign-in and Drive) are in `web/public/_headers`. To try it locally: `cd web && trunk serve`.

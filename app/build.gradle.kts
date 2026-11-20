@@ -16,7 +16,7 @@ android {
         // Release builds from CI pass -PmemiVersion=1.2.3 (from the git tag), so every release
         // has a higher versionCode and updates install over the old one (Obtainium relies on this).
         val release = (project.findProperty("memiVersion") as String?)?.removePrefix("v")
-        versionName = release ?: "0.5.0"
+        versionName = release ?: "0.6.0"
         versionCode = versionName!!.split('.').map { it.toIntOrNull() ?: 0 }.let { (it + listOf(0, 0, 0)).take(3) }
             .let { (major, minor, patch) -> major * 10_000 + minor * 100 + patch }
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
