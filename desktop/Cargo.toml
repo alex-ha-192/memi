@@ -26,7 +26,7 @@ gpui-component = "=0.10.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
-directories = "5"
+directories = "6"
 uuid = { version = "1", features = ["v4"] }
 anyhow = "1"
 
@@ -35,7 +35,7 @@ notify-rust = "4"
 
 # Photos
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif", "bmp"] }
-rfd = { version = "0.15", default-features = false, features = ["xdg-portal", "async-std"] }
+rfd = { version = "0.16", default-features = false, features = ["xdg-portal", "async-std"] }
 
 # Sync: HTTPS with rustls only (encryption and pairing are in memi-core), no telemetry anywhere.
 ureq = { version = "2", default-features = false, features = ["tls", "json"] }
@@ -44,7 +44,7 @@ tiny_http = "0.12"
 oauth2 = { version = "5", default-features = false, features = ["ureq"] }
 url = "2"
 webbrowser = "1"
-base64 = "0.22"
+base64 = "0.23"
 qrcode = { version = "0.14", default-features = false }
 keyring = { version = "3", features = ["windows-native", "async-secret-service", "async-io", "crypto-rust"] }
 zeroize = "1"
