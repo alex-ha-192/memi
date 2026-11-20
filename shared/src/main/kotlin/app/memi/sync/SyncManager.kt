@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Keeps an encrypted copy of everything in the Google account you pick, without any further
@@ -98,18 +99,72 @@ class SyncManager(private val platform: SyncPlatform, private val db: AppDatabas
 
     suspend fun useRecoveryKey(text: String): Boolean {
         val key = Crypto.keyFromText(text) ?: return false
-        val token = pendingToken ?: return false
+        return adoptKey(key)
+    }
+
+    /** Checks [key] really opens the backup in your account, then keeps it and finishes connecting. */
+    private suspend fun adoptKey(key: ByteArray): Boolean {
+        val token = pendingToken ?: platform.silentToken() ?: return false
         val ok = runCatching {
             val drive = DriveClient(token)
             val remote = drive.find(FILE) ?: return false
             Crypto.open(key, drive.download(remote.id))
         }.isSuccess
         if (ok) {
+            pairingJob?.cancel()
+            _pairingCode.value = null
             vault.save(key)
             _state.update { it.copy(problem = null) }
             connect(token)
         }
         return ok
+    }
+
+    // --- Pairing a computer by QR code (see Pairing.kt) -----------------------------------------
+
+    private val _pairingCode = MutableStateFlow<String?>(null)
+    /** On a computer waiting for its key: the text to show as a QR code. */
+    val pairingCode: StateFlow<String?> = _pairingCode.asStateFlow()
+    private var pairingJob: Job? = null
+
+    /** On the computer: shows a fresh code and waits (up to 10 minutes) for the phone to answer. */
+    fun startPairing() {
+        if (pairingJob?.isActive == true) return
+        val offer = Pairing.newOffer()
+        _pairingCode.value = offer.code
+        pairingJob = scope.launch {
+            try {
+                withTimeoutOrNull(10 * 60_000L) {
+                    while (true) {
+                        delay(3_000)
+                        val token = pendingToken ?: platform.silentToken() ?: continue
+                        val drive = DriveClient(token)
+                        val file = runCatching { drive.find(offer.fileName) }.getOrNull() ?: continue
+                        val key = runCatching { Pairing.open(offer, drive.download(file.id)) }.getOrNull()
+                        runCatching { drive.delete(file.id) }
+                        if (key != null && adoptKey(key)) break
+                    }
+                }
+            } finally {
+                if (_pairingCode.value == offer.code) _pairingCode.value = null
+            }
+        }
+    }
+
+    fun stopPairing() {
+        pairingJob?.cancel()
+        _pairingCode.value = null
+    }
+
+    /** On the phone: sends this phone's key to the computer whose code was scanned. */
+    suspend fun sendKeyTo(code: String): String {
+        val scanned = Pairing.parse(code) ?: return "That isn't a Memi code. On the computer, open Sync to show one."
+        val key = vault.local() ?: return "Turn on sync on this phone first."
+        val token = platform.silentToken() ?: return "Sign in to Google again in Sync first."
+        return runCatching {
+            DriveClient(token).create(scanned.fileName, Pairing.sealFor(scanned, key))
+            "Sent. Your computer will finish setting up in a few seconds."
+        }.getOrElse { "Couldn't reach Google Drive: ${it.message}" }
     }
 
     /** Answers [Problem.Conflict]: keep what's in your Google account, or what's on this phone. */
@@ -123,6 +178,7 @@ class SyncManager(private val platform: SyncPlatform, private val db: AppDatabas
 
     suspend fun turnOff(forgetKey: Boolean) {
         pushJob?.cancel()
+        stopPairing()
         prefs.clear()
         platform.signOut()
         if (forgetKey) vault.forget()

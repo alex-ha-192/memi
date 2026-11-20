@@ -26,6 +26,12 @@ import app.memi.ui.LocalSync
 import app.memi.sync.SyncManager
 import app.memi.ui.theme.Bento
 import app.memi.ui.theme.BentoType
+import app.memi.ui.components.QrCode
+import app.memi.platform.rememberQrScanner
+import androidx.compose.ui.Alignment
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.clickable
 
 /** Sync settings: pick a Google account once, and Memi keeps an encrypted copy there from then on. */
 @Composable
@@ -79,6 +85,7 @@ fun SyncSheet(onDismiss: () -> Unit) {
                     SecondaryButton("Sync now", Modifier.weight(1f)) { sync.syncNow() }
                     SecondaryButton("Turn off", Modifier.weight(1f), danger = true) { sync.launch { turnOff(forgetKey = false) } }
                 }
+                AddComputer(sync)
                 RecoveryKeyReveal(sync, state.keyFollows)
             }
         }
@@ -109,8 +116,8 @@ private fun RecoveryKeyReveal(sync: SyncManager, follows: Boolean) {
     var shown by remember { mutableStateOf<String?>(null) }
     Text(
         when {
-            sync.deviceWord == "computer" -> "This computer keeps its key in your system's password store. To add another computer, paste this recovery key there."
-            follows -> "Your key is backed up with your screen lock, so a new phone set up from this one picks sync up by itself. To add a computer, paste this recovery key there."
+            sync.deviceWord == "computer" -> "This computer keeps its key in your system's password store. To set up another computer, use Add a computer on your phone, or type this recovery key there."
+            follows -> "Your key is backed up with your screen lock, so a new phone set up from this one picks sync up by itself."
             else -> "Set a screen lock so your key can follow you to a new phone, or keep the recovery key somewhere safe."
         },
         style = BentoType.caption, color = colors.muted,
@@ -125,21 +132,63 @@ private fun RecoveryKeyReveal(sync: SyncManager, follows: Boolean) {
     }
 }
 
+/** On the phone: scan the code a computer is showing, to give it the key. */
+@Composable
+private fun AddComputer(sync: SyncManager) {
+    val colors = Bento.colors
+    var message by remember { mutableStateOf<String?>(null) }
+    val scan = rememberQrScanner(
+        onScanned = { code -> message = "Sending…"; sync.launch { message = sendKeyTo(code) } },
+        onError = { message = it },
+    ) ?: return
+    SecondaryButton("Add a computer", Modifier.fillMaxWidth()) { message = null; scan() }
+    Text(
+        message ?: "Open Sync in Memi on the computer, then scan the code it shows.",
+        style = BentoType.caption, color = colors.muted,
+    )
+}
+
+/** When this device has no key yet: a computer shows a code for the phone to scan; the recovery key always works too. */
 @Composable
 private fun RecoveryKeyEntry(sync: SyncManager) {
     val colors = Bento.colors
+    val device = sync.deviceWord
     var text by remember { mutableStateOf("") }
     var wrong by remember { mutableStateOf(false) }
-    val device = sync.deviceWord
-    Body(
-        if (device == "computer") "There's already a Memi backup in this account. To unlock it on this computer, you need its key."
-        else "There's already a Memi backup in this account, but this phone doesn't have its key. That happens if this phone wasn't set up from your old one."
-    )
-    Body("In Memi on your phone, open Theme → Sync → Show recovery key, and paste it here.")
-    BentoField("Recovery key", text, { text = it; wrong = false }, placeholder = "xxxxxxxx-xxxxxxxx-…", capitalization = KeyboardCapitalization.None)
-    if (wrong) Text("That key doesn't open this backup.", style = BentoType.caption, color = colors.danger)
-    PrimaryButton("Unlock backup", Modifier.fillMaxWidth(), enabled = text.isNotBlank()) {
-        sync.launch { if (!useRecoveryKey(text)) wrong = true }
+    var typing by remember { mutableStateOf(device != "computer") }
+
+    if (device == "computer") {
+        val code by sync.pairingCode.collectAsStateWithLifecycle()
+        LaunchedEffect(Unit) { sync.startPairing() }
+        Body("There's already a Memi backup in this account. To unlock it here, let your phone pass this computer its key.")
+        Body("In Memi on your phone: Theme → Sync → Add a computer, then scan this.")
+        val c = code
+        if (c != null) {
+            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                QrCode(c, Modifier.size(232.dp))
+                Text("Waiting for your phone…", style = BentoType.caption, color = colors.muted)
+            }
+        } else {
+            SecondaryButton("Show a new code", Modifier.fillMaxWidth()) { sync.startPairing() }
+        }
+        if (!typing) {
+            Text(
+                "Can't scan? Type the recovery key instead",
+                style = BentoType.label, color = colors.ink,
+                modifier = Modifier.clip(RoundedCornerShape(10.dp)).clickable { typing = true }.padding(vertical = 6.dp),
+            )
+        }
+    } else {
+        Body("There's already a Memi backup in this account, but this phone doesn't have its key. That happens if this phone wasn't set up from your old one.")
+        Body("On a device that's already syncing, open Theme → Sync → Show recovery key, and type it here.")
+    }
+
+    if (typing) {
+        BentoField("Recovery key", text, { text = it; wrong = false }, placeholder = "xxxxxxxx-xxxxxxxx-…", capitalization = KeyboardCapitalization.None)
+        if (wrong) Text("That key doesn't open this backup.", style = BentoType.caption, color = colors.danger)
+        PrimaryButton("Unlock backup", Modifier.fillMaxWidth(), enabled = text.isNotBlank()) {
+            sync.launch { if (!useRecoveryKey(text)) wrong = true }
+        }
     }
     SecondaryButton("Cancel", Modifier.fillMaxWidth()) { sync.launch { turnOff(forgetKey = false) } }
 }

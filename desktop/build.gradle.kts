@@ -31,6 +31,7 @@ dependencies {
     implementation(libs.desktop.datastore.preferences.core)
 
     implementation(libs.org.json)
+    implementation(libs.zxing.core)
     implementation(libs.java.keyring)
 }
 

@@ -86,16 +86,6 @@ jobs:
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Google sign-in client for desktop sync
-        env:
-          GOOGLE_CLIENT_JSON: ${{ secrets.GOOGLE_CLIENT_JSON }}
-        run: |
-          if [ -n "$GOOGLE_CLIENT_JSON" ]; then
-            printf '%s' "$GOOGLE_CLIENT_JSON" > desktop/src/main/resources/google-client.json
-          else
-            echo "::warning::No GOOGLE_CLIENT_JSON secret, so sync won't be available in this desktop build. See README > Automatic builds."
-          fi
-
       - name: Linux packaging tools
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y fakeroot

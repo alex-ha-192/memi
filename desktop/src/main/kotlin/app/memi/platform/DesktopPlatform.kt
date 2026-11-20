@@ -226,3 +226,7 @@ object PlatformPhotos {
 /** Escape closes the sheet or dialog on top. */
 @Composable
 fun DismissOnEscape(onDismiss: () -> Unit) = PlatformBackHandler(true, onDismiss)
+
+/** Computers show the code; they don't scan one. */
+@Composable
+fun rememberQrScanner(onScanned: (String) -> Unit, onError: (String) -> Unit): (() -> Unit)? = null

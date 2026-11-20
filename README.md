@@ -37,7 +37,6 @@ Add these under the repo's **Settings › Secrets and variables › Actions › 
 | `ANDROID_KEYSTORE_PASSWORD` | Its password |
 | `ANDROID_KEY_ALIAS` | The key's name inside it |
 | `ANDROID_KEY_PASSWORD` | The key's password |
-| `GOOGLE_CLIENT_JSON` | The whole contents of your desktop `google-client.json` (for desktop sync) |
 
 **The easiest signing key is the one you already use.** Android Studio's debug key signed the Memi on your phone, and its SHA-1 is already in Google Cloud. If CI uses the same key, its APKs install as normal updates and sync keeps working. The file is `~/.android/debug.keystore` on Linux, or `%USERPROFILE%\.android\debug.keystore` on Windows. Its details are always the same: password `android`, alias `androiddebugkey`, key password `android`. To get it as base64:
 
@@ -46,7 +45,7 @@ Add these under the repo's **Settings › Secrets and variables › Actions › 
 
 If you use a different key instead, Android won't install its APKs over the existing app. You'd need to uninstall first, so copy your recovery key out of Sync first, and add the new key's SHA-1 to Google Cloud. Each build prints its SHA-1 in the "Name the APK" step.
 
-Without the secrets the builds still run, but the APK is signed with a throwaway key and the desktop builds have no sync.
+Without the secrets the builds still run, but the APK is signed with a throwaway key. It won't update your installed Memi, and Google sign-in won't work with it.
 
 ## Desktop (Windows and Linux)
 
@@ -87,9 +86,11 @@ Theme panel › **Sync** › **Choose a Google account**. That's all you do in t
 - uploads a few seconds after you change something, and when you leave the app
 - pulls in changes from your other phone or tablet when you open it
 - on a new phone set up from your old one, finds the key and the backup by itself; pick the same account and everything comes back
-- on a computer, opens Google's sign-in in your browser (pick the same account). The first time, it asks for your **recovery key**: on the phone, open Sync › Show recovery key and paste it in. After that the computer syncs by itself too. It checks for changes whenever you switch back to the window, and sends anything waiting before it closes.
+- on a computer, opens Google's sign-in in your browser (pick the same account). The first time, the computer shows a **QR code**: on your phone, open Sync › **Add a computer** and scan it. The phone passes the key across encrypted, so only that computer can read it. After that the computer syncs by itself too. If you can't scan, typing the recovery key from Sync › Show recovery key works as well. It checks for changes whenever you switch back to the window, and sends anything waiting before it closes.
 
 **Encrypted:** the first time, Memi makes a random 256-bit key on your phone and encrypts everything (people, categories, notes, photos) with AES-256-GCM before uploading. Google only stores ciphertext, in Drive's hidden app-data space. It's not among your Drive files, and Memi can't see those files either. On the phone, the key stays inside the Android Keystore. On a computer, it's kept in Windows Credential Manager or the Linux keyring (GNOME Keyring / KWallet). Without a keyring, it goes in a file in Memi's folder that only your user account can read. It reaches your next phone through Android's Block Store, which Google encrypts end to end with your screen lock. If a phone wasn't set up from your old one, Memi asks for the **recovery key** (Sync › Show recovery key on the old phone).
+
+How the QR pairing works: the computer makes a one-off key pair and shows the public half. The phone uses it to encrypt the sync key (ECDH P-256 + HKDF + AES-GCM) and leaves the result in your Drive app folder. The computer opens it, checks it unlocks your backup, and deletes it. A photo of the code is no use to anyone else: they'd need your Google account as well, and even then they could only hand that computer a key, not read yours.
 
 **Honest limits:** it's one encrypted file, not a live merge. If two devices change things at the same moment, the last one to upload wins. When you first connect a phone that already has people on it to an account that also has a backup, Memi asks which one to keep.
 
@@ -106,9 +107,9 @@ There's nothing to paste into the code for Android: Google recognises Memi by it
 
 ### Desktop sync
 
-5. In the same project: **Clients › Create client › Desktop app**, named *Memi desktop*. Click **Download JSON**, rename the file to `google-client.json`, and put it in `desktop/src/main/resources/`. Then build or run the desktop app as usual.
+5. In the same project: **Clients › Create client › Desktop app**, named *Memi desktop*. Click **Download JSON**, rename the file to `google-client.json`, put it in `desktop/src/main/resources/`, and commit it. Every build after that, on your computer or on GitHub, has desktop sync.
 
-The file holds a client ID and a "secret". Google says desktop apps can't keep that secret, so it isn't treated as one: it only identifies Memi to Google's sign-in page. Your data stays protected by your Google account and Memi's encryption. It's left out of version control anyway (see `.gitignore`).
+The file holds a client ID and a "secret". Google says desktop apps can't keep that secret, since anyone could pull it out of the installed program, so it isn't treated as one: it only identifies Memi to Google's sign-in page. Many open-source apps commit theirs. Your data stays protected by your Google account and Memi's encryption.
 
 ## Smoothness
 

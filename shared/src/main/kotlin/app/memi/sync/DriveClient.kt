@@ -32,6 +32,8 @@ class DriveClient(private val token: String) {
         runCatching { JSONObject(String(request("GET", "$API/about?fields=user(emailAddress)"))).getJSONObject("user").optString("emailAddress").ifEmpty { null } }.getOrNull()
     }
 
+    suspend fun delete(id: String) = withContext(Dispatchers.IO) { request("DELETE", "$API/files/$id"); Unit }
+
     suspend fun download(id: String): ByteArray = withContext(Dispatchers.IO) { request("GET", "$API/files/$id?alt=media") }
 
     suspend fun create(name: String, bytes: ByteArray): RemoteFile = withContext(Dispatchers.IO) {

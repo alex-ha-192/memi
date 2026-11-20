@@ -82,6 +82,8 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.play.services.auth)
     implementation(libs.play.services.blockstore)
+    implementation(libs.play.services.code.scanner)
+    implementation(libs.zxing.core)
     implementation(libs.androidx.exifinterface)
 
     // Installs Compose's ahead-of-time profiles on release builds, which makes scrolling and animations much smoother.

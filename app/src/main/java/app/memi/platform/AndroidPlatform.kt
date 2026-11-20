@@ -18,7 +18,13 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import com.google.mlkit.vision.barcode.common.Barcode
+import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -184,3 +190,25 @@ object PlatformPhotos {
 /** Sheets and dialogs already close with the back gesture on Android. */
 @Composable
 fun DismissOnEscape(onDismiss: () -> Unit) = Unit
+
+/**
+ * Google's ready-made QR scanner (from Play services, so Memi needs no camera permission).
+ * Returns a function that opens it.
+ */
+@Composable
+fun rememberQrScanner(onScanned: (String) -> Unit, onError: (String) -> Unit): (() -> Unit)? {
+    val context = LocalContext.current
+    val scanned by rememberUpdatedState(onScanned)
+    val error by rememberUpdatedState(onError)
+    return remember(context) {
+        {
+            val options = GmsBarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE).build()
+            GmsBarcodeScanning.getClient(context, options).startScan()
+                .addOnSuccessListener { code ->
+                    val text = code.rawValue
+                    if (text != null) scanned(text) else error("Couldn't read that code. Try again.")
+                }
+                .addOnFailureListener { error("Couldn't open the scanner: ${it.message}") }
+        }
+    }
+}
