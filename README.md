@@ -77,7 +77,8 @@ Google only lets registered apps sign in. Desktop builds use the client in `desk
 Bug reports and pull requests are welcome. For anything large, please open an issue first so we can agree on the approach.
 
 - Keep the app's promise: nothing leaves the device unless the user turns on sync, and then only encrypted. No analytics, crash reporting or new network calls.
-- Every app shares formats. The desktop and web apps use the Rust core in `core/`; Android has a Kotlin copy of the same rules. A change to the database, backup, merge or sync format needs both. `cargo test` in `core/` and the Android unit tests (`./gradlew :app:testReleaseUnitTest`) check them, with shared fixtures, and `core/tests/interop/` checks the crypto against Java's.
+- Every app runs the same engine. Below the screens, Android, desktop and web share `memi-engine` (`engine/`, on the Rust core in `core/`): the data, every edit, the SQLite store, Google Drive, merging, encryption and pairing. Only sign-in, where the key is kept, notifications and photo picking differ. `cargo test` in `core/` and `engine/` checks them (`engine/tests` runs two devices through the whole life of sync), `core/tests/interop/` checks the crypto against Java's, and `ffi/tests/kotlin/run.sh` runs Android's Kotlin bindings.
+- Building Android needs Rust, the Android NDK and [cargo-ndk](https://github.com/bbqsrc/cargo-ndk) (`cargo install cargo-ndk`, then `rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android`). Gradle builds the engine and its Kotlin bindings for you.
 - CI builds every pull request on Android, Windows and Linux, and runs an Android screenshot tour on a phone, a phone with large text in dark mode, and a tablet.
 
 Found a security problem? Please email hello@yourmemi.app rather than opening a public issue. See [SECURITY.md](SECURITY.md).
@@ -85,19 +86,25 @@ Found a security problem? Please email hello@yourmemi.app rather than opening a 
 ## Code map
 
 ```
-app/src/main/java/app/memi/       Android app (package app.memi)
-  data/        Room database, repository, dates, backup format, theme settings
-  sync/        Encryption, Drive, sync engine, pairing (phone side), Play services sign-in and Block Store
-  platform/    Photos, fonts, back handling, migrations, QR scanner
-  ui/          Theme, components, screens, sheets
-app/src/androidTest/              Screenshot tour used by CI
-core/src/                         Shared Rust core (desktop and web)
+engine/src/                       memi-engine: everything below the screens, for every app
+  data, edits                     The data and every edit (by uid, and by row id for desktop and Android)
+  memi                            Memi: data, saving, photos and sync state, over a Platform each app provides
+  sync, native_drive              Sync (merge, push, joining devices, start over) and the Drive client
+  sqlite                          The SQLite store (Android's and desktop's memi.db, back to Android 0.1)
+core/src/                         Shared Rust core under the engine
   model, dates, insights, palette The data model, date rules, Home insights, colour schemes
   backup, merge                   Backup format 2 and the item-by-item merge
   crypto, pairing                 Encryption and handing the key between devices
+ffi/                              The engine for Android, through UniFFI (Kotlin package app.memi.engine)
+app/src/main/java/app/memi/       Android app (package app.memi)
+  data/        Repository (the screens' way into the engine), dates, theme settings
+  sync/        Sync timers and state, Play services sign-in, the key in Keystore and Block Store
+  platform/    Photos, fonts, back handling, reminders, QR scanner
+  ui/          Theme, components, screens, sheets
+app/src/androidTest/              Screenshot tour used by CI
 desktop/src/                      Desktop app (Rust)
-  store, photos                   SQLite (with the same triggers as Android), photo crop and import
-  sync/                           drive, auth (browser sign-in), secrets (keyring), the sync engine
+  platform, photos                Where the engine keeps things on a computer, photo crop and import
+  sync/                           auth (browser sign-in), secrets (keyring), running the engine's sync
   ui/                             GPUI views: app state, panes, sheets, widgets, theme, assets
 desktop/packaging/                .desktop, metainfo, WiX installer, icons
 web/                              memi.yourmemi.app (Rust, Leptos, WebAssembly)

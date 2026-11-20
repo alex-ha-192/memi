@@ -67,4 +67,4 @@ Obtainium reads GitHub Releases directly, so nothing else is needed. The website
 
 ## Web app
 
-`web/` is built with [Trunk](https://trunkrs.dev) by `.github/workflows/web.yml` on every change to `web/` or `core/`, and deployed from `main` to the Cloudflare Pages project `memi-web`, served at `memi.yourmemi.app` (Pages › memi-web › Custom domains). Each build is also pushed to the `ci-web` branch. Its headers (including a strict Content-Security-Policy that allows only Google's sign-in and Drive) are in `web/public/_headers`. To try it locally: `cd web && trunk serve`.
+`web/` is built with [Trunk](https://trunkrs.dev) by `.github/workflows/web.yml` on every change to `web/`, `engine/` or `core/`, and deployed from `main` to the Cloudflare Pages project `memi-web`, served at `memi.yourmemi.app` (Pages › memi-web › Custom domains). Each build is also pushed to the `ci-web` branch. Its headers (including a strict Content-Security-Policy that allows only Google's sign-in and Drive) are in `web/public/_headers`. To try it locally: `cd web && trunk serve`.

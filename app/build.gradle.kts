@@ -15,7 +15,7 @@ android {
         // Release builds from CI pass -PmemiVersion=1.2.3 (from the git tag), so every release
         // has a higher versionCode and updates install over the old one (Obtainium relies on this).
         val release = (project.findProperty("memiVersion") as String?)?.removePrefix("v")
-        versionName = release ?: "0.6.0"
+        versionName = release ?: "0.6.1"
         versionCode = versionName!!.split('.').map { it.toIntOrNull() ?: 0 }.let { (it + listOf(0, 0, 0)).take(3) }
             .let { (major, minor, patch) -> major * 10_000 + minor * 100 + patch }
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -81,15 +81,19 @@ val buildRust by tasks.registering(Exec::class) {
 }
 
 val rustKotlin by tasks.registering(Exec::class) {
-    description = "Generates memi-engine's Kotlin bindings with UniFFI."
+    description = "Generates memi-engine's Kotlin bindings with UniFFI (from a build for this computer, which keeps the symbols UniFFI reads; the Android libraries are stripped)."
     dependsOn(buildRust)
     workingDir = rustDir
     inputs.dir(rustJniLibs)
     outputs.dir(rustBindings)
-    val lib = rustJniLibs.get().file("x86_64/libmemi_ffi.so").asFile
     val out = rustBindings.get().asFile
-    commandLine("cargo", "run", "--features", "bindgen", "--bin", "uniffi-bindgen", "--",
-        "generate", "--library", lib.path, "--language", "kotlin", "--out-dir", out.path, "--no-format")
+    val ext = when {
+        org.gradle.internal.os.OperatingSystem.current().isWindows -> "dll"
+        org.gradle.internal.os.OperatingSystem.current().isMacOsX -> "dylib"
+        else -> "so"
+    }
+    val prefix = if (ext == "dll") "" else "lib"
+    commandLine("sh", "-c", "cargo build --lib && cargo run --features bindgen --bin uniffi-bindgen -- generate --library target/debug/${prefix}memi_ffi.$ext --language kotlin --out-dir '${out.path}' --no-format")
 }
 
 android.sourceSets.getByName("main") {

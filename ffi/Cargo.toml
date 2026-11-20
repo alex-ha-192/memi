@@ -31,6 +31,6 @@ bindgen = ["uniffi/cli"]
 opt-level = "z"
 lto = true
 codegen-units = 1
-# Keep the symbol table: uniffi-bindgen reads the bindings from it. Android strips the .so when packaging.
-strip = "debuginfo"
+# The bindings are generated from a build for the computer doing the build (which keeps its symbols), so the Android libraries can be stripped.
+strip = true
 panic = "unwind"

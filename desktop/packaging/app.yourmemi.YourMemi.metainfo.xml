@@ -72,6 +72,11 @@
     <keyword>notes</keyword>
   </keywords>
   <releases>
+    <release version="0.6.1" date="2026-11-20">
+      <description>
+        <p>Nothing looks or works differently. Underneath, Memi on Android, Windows, Linux and the web now runs on one shared engine, and its security code uses established, audited libraries.</p>
+      </description>
+    </release>
     <release version="0.6.0" date="2026-11-20">
       <description>
         <p>Your devices now stay in step on their own, and every edit is kept: Memi merges changes item by item instead of keeping only the latest copy.</p>
