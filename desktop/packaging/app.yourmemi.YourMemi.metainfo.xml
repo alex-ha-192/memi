@@ -32,6 +32,7 @@
   <url type="bugtracker">https://github.com/alex-ha-192/memi/issues</url>
   <url type="vcs-browser">https://github.com/alex-ha-192/memi</url>
   <url type="privacy-policy">https://yourmemi.app/privacy</url>
+  <url type="contact">mailto:hello@yourmemi.app</url>
   <screenshots>
     <screenshot type="default">
       <caption>Your people, what's coming up, and one person's categories</caption>

@@ -7,7 +7,7 @@ Your Memi is for keeping the specific things you want to remember about the peop
 Everything stays on your own devices. Sync is optional, and when it's on, the data is encrypted before it leaves your device and stored in your own Google Drive. There are no servers, accounts, analytics or ads. See the [privacy policy](https://yourmemi.app/privacy/) (source in `website/privacy/`).
 
 - Website: <https://yourmemi.app> (source in `website/`)
-- Questions and bugs: [open an issue](../../issues)
+- Questions and bugs: [open an issue](../../issues) or email hello@yourmemi.app
 
 ## Get it
 
@@ -92,6 +92,8 @@ Under **Settings › Secrets and variables › Actions**:
 | `ANDROID_KEYSTORE_PASSWORD` | Its password |
 | `ANDROID_KEY_ALIAS` | The key's alias |
 | `ANDROID_KEY_PASSWORD` | The key's password |
+| `CLOUDFLARE_API_TOKEN` | A Cloudflare API token with Account › Cloudflare Pages › Edit, for the website |
+| `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare account ID (dashboard sidebar) |
 | `FLATHUB_TOKEN` | A GitHub token that can push to `flathub/app.yourmemi.YourMemi` (after the app is accepted on Flathub) |
 
 Android only installs an update signed with the same key as the installed app, and Google sign-in only works for keys registered in Google Cloud. Pick the signing key once and keep it safe. To get a keystore as base64: `base64 -w0 my.keystore` (Linux) or `[Convert]::ToBase64String([IO.File]::ReadAllBytes("my.keystore"))` (PowerShell). Each build prints the SHA-1 it was signed with.
@@ -107,7 +109,7 @@ The metainfo file (`desktop/packaging/app.yourmemi.YourMemi.metainfo.xml`) point
 
 ### Website
 
-`website/` is plain HTML and CSS, deployed to GitHub Pages by `.github/workflows/website.yml` with the custom domain in `website/CNAME`. It loads nothing from other sites, sets no cookies, and only stores the theme toggle in your browser.
+`website/` is plain HTML and CSS, deployed to Cloudflare Pages (project `yourmemi`) by `.github/workflows/website.yml`. It needs the secrets `CLOUDFLARE_API_TOKEN` (with Cloudflare Pages: Edit) and `CLOUDFLARE_ACCOUNT_ID`; until they're set, the workflow skips the deploy. Security headers are in `website/_headers`. The site loads nothing from other sites, sets no cookies, and only stores the theme toggle in your browser. Keep Cloudflare's Web Analytics, Email Address Obfuscation and Rocket Loader off: each injects a script, which the site's security policy blocks and the privacy policy rules out.
 
 ## Google Cloud setup
 
