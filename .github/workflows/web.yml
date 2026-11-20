@@ -61,10 +61,11 @@ jobs:
           sleep 1
           for i in 1 2 3; do
             google-chrome --headless=new --no-sandbox --disable-gpu --virtual-time-budget=8000 --dump-dom http://localhost:8790/ > dom.html 2>/dev/null || true
-            grep -q "Your people" dom.html && break
+            grep -q 'style="--bg:' dom.html && break
             sleep 2
           done
-          grep -q "Your people" dom.html || { echo "::error::The web app didn't start (blank page). Check the Content-Security-Policy in public/_headers."; head -c 3000 dom.html; exit 1; }
+          # The app's first act is setting the theme's colours on <html>; a blocked script never gets there.
+          grep -q 'style="--bg:' dom.html || { echo "::error::The web app didn't start (blank page). Check the Content-Security-Policy in public/_headers."; head -c 3000 dom.html; exit 1; }
           echo "The web app starts."
       - uses: actions/upload-artifact@v4
         with:
