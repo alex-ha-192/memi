@@ -26,9 +26,9 @@ pub fn WelcomeView() -> impl IntoView {
     };
     let step = move || a.welcome.get().unwrap_or(Welcome::Question);
     view! {
-        <div class="welcome">
-            <div class="welcome-card">
-                <div class="welcome-memi"><img src="/memi.png" alt="Memi the elephant" width="96" height="96" /></div>
+        <div class="first-launch">
+            <div class="first-launch-card">
+                <div class="first-launch-memi"><img src="/memi.png" alt="Memi the elephant" width="96" height="96" /></div>
                 <Show when=move || step() == Welcome::Question fallback=move || view! {
                     <h1>"Hi, I'm Memi"</h1>
                     <p class="muted centered">"I keep the little things about the people you care about: gift ideas, plans, and what they mentioned last time."</p>
