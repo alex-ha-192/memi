@@ -127,6 +127,15 @@ jobs:
         with:
           name: android-screens
           path: shots/
+      - name: Also publish to the ci-screens branch (dev builds only)
+        if: always() && github.ref == 'refs/heads/main'
+        run: |
+          [ -d shots ] || exit 0
+          cd shots
+          git init -q -b ci-screens
+          git -c user.name=ci -c user.email=ci@users.noreply.github.com add -A
+          git -c user.name=ci -c user.email=ci@users.noreply.github.com commit -qm "Screens for ${GITHUB_SHA::7}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" ci-screens
 
   linux:
     name: Linux (binary, AppImage)
