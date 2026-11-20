@@ -187,6 +187,15 @@ mod tests {
         assert_eq!(s.people[0].uid, legacy_uid::person(1, 5), "the same uid an upgraded device gives Sam");
     }
 
+    /// The Android app's BackupTest checks the same values.
+    #[test]
+    fn legacy_uids_are_fixed() {
+        assert_eq!(legacy_uid::person(3, 1700000000000), "a1e4984a7e39eea1336fa23191d15348");
+        assert_eq!(legacy_uid::collection(7, Some(3), Some(1700000000000)), "4fd968f882732d432b8ffa516af1ea10");
+        assert_eq!(legacy_uid::collection(9, None, None), "6e53e5417e60db96d0d6bda4d1d200a5");
+        assert_eq!(legacy_uid::note(12, 1700000000123), "ed39b1b44db4f7dc2b2ecabca8a47f90");
+    }
+
     #[test]
     fn newer_formats_are_refused() {
         assert!(import(br#"{"format":3}"#).is_err());

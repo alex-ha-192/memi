@@ -133,7 +133,10 @@ private fun Content(vm: AppViewModel) {
         if (selectedId != null && people.isNotEmpty() && people.none { it.id == selectedId }) selectedId = null
     }
 
-    val model = remember(people, notes, collections) { HomeModel(people, notes, collections) }
+    val freshCollapsed by vm.freshCollapsed.collectAsStateWithLifecycle()
+    val model = remember(people, notes, collections, freshCollapsed, syncState.joins) {
+        HomeModel(people, notes, collections, freshCollapsed, syncState.joins)
+    }
     val actions = remember(collections) {
         NoteActions(
             collections = collections,
@@ -213,7 +216,7 @@ private fun Content(vm: AppViewModel) {
                         onAddPerson = { dialog = Dialog.EditPerson(null) },
                         onOpenPerson = { selectedId = it; search = null },
                         onOpenCategory = openCategory,
-                        actions = actions, peopleActions = peopleActions,
+                        actions = actions, peopleActions = peopleActions, onToggleFresh = { vm.toggleFresh() },
                         contentPadding = PaddingValues(start = 28.dp, end = 20.dp, top = statusTop, bottom = bottomPadding),
                     )
                 }
@@ -253,7 +256,7 @@ private fun Content(vm: AppViewModel) {
                         onAddPerson = { dialog = Dialog.EditPerson(null) },
                         onOpenPerson = { selectedId = it; search = null },
                         onOpenCategory = openCategory,
-                        actions = actions, peopleActions = peopleActions,
+                        actions = actions, peopleActions = peopleActions, onToggleFresh = { vm.toggleFresh() },
                         contentPadding = padding,
                     )
                 } else {

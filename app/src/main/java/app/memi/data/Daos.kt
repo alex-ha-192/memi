@@ -72,7 +72,7 @@ interface CollectionDao {
 
 @Dao
 interface NoteDao {
-    @Query("SELECT * FROM notes ORDER BY mentionedAt DESC")
+    @Query("SELECT * FROM notes ORDER BY sortOrder, mentionedAt DESC")
     fun observeAll(): Flow<List<Note>>
 
     @Query("SELECT * FROM notes")
@@ -98,4 +98,10 @@ interface NoteDao {
 
     @Query("DELETE FROM notes")
     suspend fun clear()
+}
+
+@Dao
+interface TombstoneDao {
+    @Query("SELECT * FROM tombstones")
+    suspend fun all(): List<Tombstone>
 }

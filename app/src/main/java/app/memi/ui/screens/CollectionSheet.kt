@@ -63,7 +63,7 @@ fun CollectionSheet(
     val colors = Bento.colors
     val slot = collection.slot % colors.tiles.size
     val items = notes.filter { it.personId == person.id && it.collectionId == collection.id && it.status == Status.OPEN }
-        .sortedByDescending { it.mentionedAt }
+        .sortedWith(compareBy({ it.sortOrder }, { -it.mentionedAt }))
     var text by remember { mutableStateOf("") }
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { if (items.isEmpty()) runCatching { focus.requestFocus() } }

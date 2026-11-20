@@ -16,15 +16,21 @@ class DriveClient(private val token: String) {
     class Unauthorized : Exception("Google sign-in expired")
     class HttpError(val code: Int, body: String) : Exception("Google Drive said $code: ${body.take(200)}")
 
-    data class RemoteFile(val id: String, val modifiedTime: String?, val size: Long?)
+    data class RemoteFile(val id: String, val modifiedTime: String?, val size: Long?, val name: String = "")
 
     suspend fun find(name: String): RemoteFile? = withContext(Dispatchers.IO) {
         val q = URLEncoder.encode("name='$name' and trashed=false", "UTF-8")
-        val url = "$API/files?spaces=appDataFolder&q=$q&fields=files(id,modifiedTime,size)&orderBy=modifiedTime%20desc"
+        val url = "$API/files?spaces=appDataFolder&q=$q&fields=files(id,name,modifiedTime,size)&orderBy=modifiedTime%20desc"
         val files = JSONObject(String(request("GET", url))).getJSONArray("files")
-        if (files.length() == 0) null else files.getJSONObject(0).let {
-            RemoteFile(it.getString("id"), it.optString("modifiedTime").ifEmpty { null }, it.optString("size").toLongOrNull())
-        }
+        if (files.length() == 0) null else parse(files.getJSONObject(0))
+    }
+
+    /** Every file in the app folder whose name starts with [prefix], newest first. */
+    suspend fun list(prefix: String): List<RemoteFile> = withContext(Dispatchers.IO) {
+        val q = URLEncoder.encode("name contains '$prefix' and trashed=false", "UTF-8")
+        val url = "$API/files?spaces=appDataFolder&q=$q&fields=files(id,name,modifiedTime,size)&orderBy=modifiedTime%20desc&pageSize=50"
+        val files = JSONObject(String(request("GET", url))).getJSONArray("files")
+        (0 until files.length()).map { parse(files.getJSONObject(it)) }.filter { it.name.startsWith(prefix) }
     }
 
     /** The email of the Google account that's connected, to show in settings. */
@@ -45,17 +51,17 @@ class DriveClient(private val token: String) {
             write(bytes)
             write("\r\n--$boundary--\r\n".toByteArray())
         }.toByteArray()
-        parse(request("POST", "$UPLOAD/files?uploadType=multipart&fields=id,modifiedTime,size", body, "multipart/related; boundary=$boundary"))
+        parse(request("POST", "$UPLOAD/files?uploadType=multipart&fields=id,name,modifiedTime,size", body, "multipart/related; boundary=$boundary"))
     }
 
     suspend fun update(id: String, bytes: ByteArray): RemoteFile = withContext(Dispatchers.IO) {
         // HttpURLConnection has no PATCH, so use Google's method override header.
-        parse(request("POST", "$UPLOAD/files/$id?uploadType=media&fields=id,modifiedTime,size", bytes, "application/octet-stream", override = "PATCH"))
+        parse(request("POST", "$UPLOAD/files/$id?uploadType=media&fields=id,name,modifiedTime,size", bytes, "application/octet-stream", override = "PATCH"))
     }
 
-    private fun parse(res: ByteArray): RemoteFile = JSONObject(String(res)).let {
-        RemoteFile(it.getString("id"), it.optString("modifiedTime").ifEmpty { null }, it.optString("size").toLongOrNull())
-    }
+    private fun parse(res: ByteArray): RemoteFile = parse(JSONObject(String(res)))
+
+    private fun parse(o: JSONObject) = RemoteFile(o.getString("id"), o.optString("modifiedTime").ifEmpty { null }, o.optString("size").toLongOrNull(), o.optString("name"))
 
     private fun request(method: String, url: String, body: ByteArray? = null, type: String? = null, override: String? = null): ByteArray {
         val c = URL(url).openConnection() as HttpURLConnection

@@ -11,6 +11,9 @@ interface SyncPlatform {
     /** Where the encryption key lives on this device. */
     val keys: KeyVault
 
+    /** What this device is called when it asks your other devices for the key, e.g. "Pixel 8". */
+    val deviceLabel: String
+
     /** An access token for the connected Google account without asking, or null if you need to sign in again. */
     suspend fun silentToken(): String?
 

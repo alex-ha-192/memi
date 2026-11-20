@@ -56,7 +56,7 @@ object Insights {
         return collection?.let { Dates.nextOccasion(it, person, today) }
     }
 
-    /** The next birthday or dated category coming up, for the big tile on Home. */
+    /** One thing coming up, for the Coming up tile on Home. */
     data class Upcoming(
         val person: Person,
         val date: LocalDate,
@@ -64,37 +64,55 @@ object Insights {
         val open: Int,
         /** The category to open when tapped, if there is one. */
         val collection: NoteCollection?,
+        /** Set when this is a dated plan or note. */
+        val note: Note? = null,
+        val isBirthday: Boolean = false,
     )
 
-    fun nextUp(
+    /**
+     * The next few things coming up, soonest first, however far away: birthdays, dated categories
+     * (an anniversary, a trip) and open plans or notes with their own date. Same as the desktop's
+     * (core/src/insights.rs `next_events`).
+     */
+    fun nextEvents(
         people: List<Person>,
         notes: List<Note>,
         collections: List<NoteCollection>,
+        count: Int = 3,
         today: LocalDate = Dates.today(),
-    ): Upcoming? {
+    ): List<Upcoming> {
         val openByCollection = notes.filter { it.status == Status.OPEN }.groupingBy { it.collectionId }.eachCount()
-        val candidates = mutableListOf<Upcoming>()
+        val byId = people.associateBy { it.id }
+        val colById = collections.associateBy { it.id }
+        val all = mutableListOf<Upcoming>()
         for (p in people) {
             val mine = collections.filter { it.personId == p.id }
             Dates.nextBirthday(p, today)?.let { d ->
                 val birthdayCats = mine.filter { it.occasion == Occasion.BIRTHDAY }
                 val turning = Dates.turningAge(p, today)
-                candidates += Upcoming(
+                all += Upcoming(
                     person = p, date = d,
                     title = if (turning != null) "${p.firstName} turns $turning" else "${p.firstName}'s birthday",
                     open = birthdayCats.sumOf { openByCollection[it.id] ?: 0 },
                     collection = birthdayCats.firstOrNull(),
+                    isBirthday = true,
                 )
             }
             mine.filter { it.occasion == Occasion.DATE }.forEach { c ->
                 Dates.nextOccasion(c, p, today)?.let { d ->
-                    candidates += Upcoming(p, d, "${c.name} · ${p.firstName}", openByCollection[c.id] ?: 0, c)
+                    all += Upcoming(p, d, "${c.name} · ${p.firstName}", openByCollection[c.id] ?: 0, c)
                 }
             }
         }
-        return candidates
-            .filter { ChronoUnit.DAYS.between(today, it.date) <= UPCOMING_DAYS }
-            .minWithOrNull(compareBy({ it.date }, { if (it.title.contains("birthday") || it.title.contains("turns")) 0 else 1 }))
+        for (n in notes) {
+            if (n.status != Status.OPEN) continue
+            val due = n.dueAt ?: continue
+            val p = byId[n.personId] ?: continue
+            val d = Dates.toDate(due)
+            if (d < today) continue
+            all += Upcoming(p, d, n.text, 0, colById[n.collectionId], note = n)
+        }
+        return all.sortedWith(compareBy({ it.date }, { !it.isBirthday }, { it.note != null })).take(count)
     }
 
     fun openCount(person: Person, notes: List<Note>): Int =

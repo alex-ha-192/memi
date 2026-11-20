@@ -1,6 +1,8 @@
 package app.memi.sync
 
+import org.json.JSONObject
 import java.nio.ByteBuffer
+import java.security.MessageDigest
 import java.security.KeyFactory
 import java.security.KeyPair
 import java.security.KeyPairGenerator
@@ -28,27 +30,79 @@ import javax.crypto.spec.SecretKeySpec
  *    opens your backup, and deletes the file.
  *
  * Only the computer that showed the code can open the file, and the code is useless once used.
- * This is the phone's half; the desktop app (desktop/src/sync/pairing.rs) is the computer's half,
- * and the two must stay byte-for-byte compatible.
+ *
+ * It works the other way round too ("start anywhere"): a phone without the key makes an [Offer]
+ * and leaves it in Drive as a join request (memi-join-<id>.json), and a computer, the web app or
+ * another phone that has the key answers it. Both sides show the same 6-digit [confirmCode].
+ * Byte-for-byte compatible with core/src/pairing.rs.
  */
 object Pairing {
     private const val PREFIX = "memi:pair:1:"
+    const val JOIN_PREFIX = "memi-join-"
+    /** Join requests older than this are ignored and cleaned up. */
+    const val JOIN_MINUTES = 15L
     private val unb64 = Base64.getUrlDecoder()
+    private val b64 = Base64.getUrlEncoder().withoutPadding()
 
-    class Scanned(val id: String, val computerKey: PublicKey) {
+    class Scanned(val id: String, val computerKey: PublicKey, val code: String) {
         val fileName: String = fileName(id)
+        val confirmCode: String get() = confirmCode(code)
     }
+
+    /** A request for the key, found in Drive. */
+    class JoinRequest(val scanned: Scanned, val device: String, val at: Long)
+
+    /** On a device without the key: a one-off key pair to receive it with. */
+    class Offer {
+        val id: String = b64.encodeToString(ByteArray(9).also { SecureRandom().nextBytes(it) })
+        private val pair = newKeyPair()
+        val code: String = PREFIX + id + ":" + b64.encodeToString(pair.public.encoded)
+        val fileName: String = fileName(id)
+        val joinFileName: String = "$JOIN_PREFIX$id.json"
+        val confirmCode: String get() = confirmCode(code)
+
+        fun joinRequest(device: String, now: Long = System.currentTimeMillis()): ByteArray =
+            JSONObject().put("code", code).put("device", device).put("at", now).toString().toByteArray()
+
+        /** Opens what the other device sent: the sync key. */
+        fun open(blob: ByteArray): ByteArray {
+            val buf = ByteBuffer.wrap(blob)
+            val len = buf.short.toInt() and 0xffff
+            require(blob.size > 2 + len + 12) { "Too short" }
+            val theirs = ByteArray(len).also { buf.get(it) }
+            val iv = ByteArray(12).also { buf.get(it) }
+            val sealed = ByteArray(buf.remaining()).also { buf.get(it) }
+            val pub = KeyFactory.getInstance("EC").generatePublic(X509EncodedKeySpec(theirs))
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(shared(pair.private, pub, id), "AES"), GCMParameterSpec(128, iv))
+            return cipher.doFinal(sealed).also { require(it.size == 32) { "Wrong key size" } }
+        }
+    }
+
+    /** Six digits both devices show, so you can check you're handing the key to the right one. */
+    fun confirmCode(code: String): String {
+        val h = MessageDigest.getInstance("SHA-256").digest(code.trim().toByteArray())
+        val n = (ByteBuffer.wrap(h, 0, 4).int.toLong() and 0xffffffffL) % 1_000_000
+        return "%03d %03d".format(n / 1000, n % 1000)
+    }
+
+    fun parseJoinRequest(bytes: ByteArray): JoinRequest? = runCatching {
+        val o = JSONObject(String(bytes))
+        val scanned = parse(o.getString("code")) ?: return null
+        JoinRequest(scanned, o.optString("device", "A new device").ifEmpty { "A new device" }.take(60), o.optLong("at"))
+    }.getOrNull()
 
     fun fileName(id: String) = "memi-pair-$id.bin"
 
     /** Reads a scanned QR code, or null if it isn't a Memi pairing code. */
     fun parse(code: String): Scanned? = runCatching {
-        if (!code.startsWith(PREFIX)) return null
-        val (id, key) = code.removePrefix(PREFIX).split(':', limit = 2)
-        Scanned(id, KeyFactory.getInstance("EC").generatePublic(X509EncodedKeySpec(unb64.decode(key))))
+        val trimmed = code.trim()
+        if (!trimmed.startsWith(PREFIX)) return null
+        val (id, key) = trimmed.removePrefix(PREFIX).split(':', limit = 2)
+        Scanned(id, KeyFactory.getInstance("EC").generatePublic(X509EncodedKeySpec(unb64.decode(key))), trimmed)
     }.getOrNull()
 
-    /** On the phone: encrypt [syncKey] so only the computer that showed the code can read it. */
+    /** On a device with the key: encrypt [syncKey] so only the device that offered the code can read it. */
     fun sealFor(scanned: Scanned, syncKey: ByteArray): ByteArray {
         val mine = newKeyPair()
         val secret = shared(mine.private, scanned.computerKey, scanned.id)

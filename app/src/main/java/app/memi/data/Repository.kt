@@ -5,6 +5,9 @@ import kotlinx.coroutines.flow.Flow
 
 class Repository(private val db: AppDatabase) {
 
+    /** Every edit moves the record's edit time on, so it wins over older copies when merging. */
+    private fun now() = System.currentTimeMillis()
+
     val people: Flow<List<Person>> = db.people().observeAll()
     val collections: Flow<List<NoteCollection>> = db.collections().observeAll()
     val notes: Flow<List<Note>> = db.notes().observeAll()
@@ -27,7 +30,7 @@ class Repository(private val db: AppDatabase) {
         return id
     }
 
-    suspend fun updatePerson(person: Person) = db.people().update(person)
+    suspend fun updatePerson(person: Person) = db.people().update(person.copy(updatedAt = now()))
 
     suspend fun deletePerson(person: Person) {
         PlatformPhotos.delete(person.photoPath)
@@ -38,7 +41,7 @@ class Repository(private val db: AppDatabase) {
     suspend fun setPinned(person: Person, pinned: Boolean) {
         val all = db.people().all()
         val endOfGroup = (all.filter { it.pinned == pinned }.maxOfOrNull { it.sortOrder } ?: 0) + 1
-        db.people().update(person.copy(pinned = pinned, sortOrder = endOfGroup))
+        db.people().update(person.copy(pinned = pinned, sortOrder = endOfGroup, updatedAt = now()))
     }
 
     /** Moves someone one place earlier (-1) or later (+1) among the pinned or unpinned group. */
@@ -49,7 +52,7 @@ class Repository(private val db: AppDatabase) {
         val j = i + delta
         if (i < 0 || j !in group.indices) return
         group.add(j, group.removeAt(i))
-        db.people().updateAll(group.mapIndexed { index, p -> p.copy(sortOrder = index) })
+        db.people().updateAll(group.mapIndexed { index, p -> p.copy(sortOrder = index, updatedAt = now()) })
     }
 
 
@@ -60,24 +63,25 @@ class Repository(private val db: AppDatabase) {
     suspend fun addNote(personId: Long, collectionId: Long, text: String, dueAt: Long? = null): Long {
         val now = System.currentTimeMillis()
         return db.notes().insert(
-            Note(personId = personId, collectionId = collectionId, text = text.trim(), mentionedAt = now, firstMentionedAt = now, dueAt = dueAt)
+            Note(personId = personId, collectionId = collectionId, text = text.trim(), mentionedAt = now, firstMentionedAt = now, dueAt = dueAt, sortOrder = -now)
         )
     }
 
-    suspend fun updateNote(note: Note) = db.notes().update(note)
+    suspend fun updateNote(note: Note) = db.notes().update(note.copy(updatedAt = now()))
 
     suspend fun deleteNote(note: Note) = db.notes().delete(note)
 
     suspend fun deleteNoteIds(ids: List<Long>) = db.notes().deleteIds(ids)
 
-    suspend fun restoreNote(note: Note) = db.notes().insert(note)
+    /** Undo: puts a deleted note back, as a new change so it wins over the deletion everywhere. */
+    suspend fun restoreNote(note: Note) = db.notes().insert(note.copy(updatedAt = 0))
 
     suspend fun markDone(note: Note, outcome: Int) = db.notes().update(
-        note.copy(status = Status.DONE, outcome = outcome, doneAt = note.doneAt ?: System.currentTimeMillis())
+        note.copy(status = Status.DONE, outcome = outcome, doneAt = note.doneAt ?: System.currentTimeMillis(), updatedAt = now())
     )
 
     suspend fun reopen(note: Note) = db.notes().update(
-        note.copy(status = Status.OPEN, outcome = Outcome.NONE, doneAt = null)
+        note.copy(status = Status.OPEN, outcome = Outcome.NONE, doneAt = null, updatedAt = now())
     )
 
     // Categories (each belongs to one person)
@@ -95,7 +99,7 @@ class Repository(private val db: AppDatabase) {
         )
     }
 
-    suspend fun updateCollection(collection: NoteCollection) = db.collections().update(collection.copy(name = collection.name.trim()))
+    suspend fun updateCollection(collection: NoteCollection) = db.collections().update(collection.copy(name = collection.name.trim(), updatedAt = now()))
 
     /** Moves a category one place earlier (-1) or later (+1) among that person's categories. */
     suspend fun moveCollection(collection: NoteCollection, delta: Int) {
@@ -105,7 +109,7 @@ class Repository(private val db: AppDatabase) {
         val j = i + delta
         if (i < 0 || j !in mine.indices) return
         mine.add(j, mine.removeAt(i))
-        db.collections().updateAll(mine.mapIndexed { index, c -> c.copy(sortOrder = index) })
+        db.collections().updateAll(mine.mapIndexed { index, c -> c.copy(sortOrder = index, updatedAt = now()) })
     }
 
     /** Removes a category. Its notes move to another of the person's categories so nothing is lost. */

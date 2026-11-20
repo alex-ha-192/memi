@@ -279,7 +279,7 @@ private fun CollectionTiles(
     val cells = mutableListOf<@Composable (Modifier) -> Unit>()
     if (extraTile != null) cells.add(extraTile)
     collections.forEachIndexed { index, c ->
-        val items = open.filter { it.collectionId == c.id }.sortedByDescending { it.mentionedAt }
+        val items = open.filter { it.collectionId == c.id }.sortedWith(compareBy({ it.sortOrder }, { -it.mentionedAt }))
         val first = index == 0
         val last = index == collections.lastIndex
         cells.add { m -> CollectionTile(person, c, items, first, last, callbacks, m) }

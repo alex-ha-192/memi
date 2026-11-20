@@ -51,12 +51,7 @@ fun SyncSheet(onDismiss: () -> Unit) {
         SheetTitle("Sync")
         val problem = state.problem
         when {
-            problem is SyncManager.Problem.NeedsRecoveryKey -> RecoveryKeyEntry(sync)
-            problem is SyncManager.Problem.Conflict -> {
-                Body("This phone and your Google account both have people in Your Memi already. Which should be kept? The other one is replaced.")
-                PrimaryButton("Use what's in my Google account", Modifier.fillMaxWidth()) { sync.launch { resolveConflict(keepAccount = true) } }
-                SecondaryButton("Use what's on this phone", Modifier.fillMaxWidth()) { sync.launch { resolveConflict(keepAccount = false) } }
-            }
+            problem is SyncManager.Problem.NeedsRecoveryKey -> RecoveryKeyEntry(sync, problem.confirm)
             !state.enabled -> {
                 Body("Keep a copy of everything in your own Google account, so a new phone, tablet or computer can pick up where you left off.")
                 Body("It's encrypted on this phone before it leaves, so Google can't read it, and it sits in a hidden folder only Your Memi can open, away from your Drive files. Nobody else, including us, ever gets a copy.")
@@ -80,6 +75,7 @@ fun SyncSheet(onDismiss: () -> Unit) {
                     SecondaryButton("Sync now", Modifier.weight(1f)) { sync.syncNow() }
                     SecondaryButton("Turn off", Modifier.weight(1f), danger = true) { sync.launch { turnOff(forgetKey = false) } }
                 }
+                state.joins.forEach { JoinCard(it) }
                 AddComputer(sync)
                 RecoveryKeyReveal(sync, state.keyFollows)
             }
@@ -152,19 +148,56 @@ private fun AddComputer(sync: SyncManager) {
     ) ?: return
     SecondaryButton("Add a computer", Modifier.fillMaxWidth()) { message = null; scan() }
     Text(
-        message ?: "Open Sync in Your Memi on the computer, sign in, then scan the code it shows.",
+        message ?: "Open Sync in Memi on the computer, sign in, then scan the code it shows.",
         style = BentoType.caption, color = colors.muted,
     )
 }
 
-/** When this phone has no key yet: type the recovery key from a device that's already syncing. */
+/**
+ * Another device asking for the key. Shown in Sync and at the top of Home; the codes on both
+ * devices should match before you allow it.
+ */
 @Composable
-private fun RecoveryKeyEntry(sync: SyncManager) {
+fun JoinCard(join: SyncManager.Join) {
+    val sync = LocalSync.current
+    val colors = Bento.colors
+    var message by remember(join.fileId) { mutableStateOf<String?>(null) }
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(colors.card).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text("${join.device} wants to join your Memi", style = BentoType.cardTitle, color = colors.ink)
+        Text("Allow it only if it shows this code:", style = BentoType.label, color = colors.muted)
+        Text(join.confirm, style = BentoType.cardTitle.copy(fontFamily = FontFamily.Monospace), color = colors.ink)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            PrimaryButton("Allow", Modifier.weight(1f)) { message = "Sending…"; sync.launch { message = approveJoin(join.fileId) } }
+            SecondaryButton("Not mine", Modifier.weight(1f)) { sync.launch { declineJoin(join.fileId) } }
+        }
+        message?.let { Text(it, style = BentoType.caption, color = colors.muted) }
+    }
+}
+
+/**
+ * When this phone has no key yet: it asks your other devices for it (they show an Allow card with
+ * the same code), or you can type the recovery key.
+ */
+@Composable
+private fun RecoveryKeyEntry(sync: SyncManager, confirm: String?) {
     val colors = Bento.colors
     var text by remember { mutableStateOf("") }
     var wrong by remember { mutableStateOf(false) }
-    Body("There's a Your Memi backup in this Google account that this phone can't open yet. That happens when a phone wasn't set up from your old one, or sync was started over on another device.")
-    Body("On a device that's already syncing, open Theme → Sync → Show recovery key, and type it here.")
+    Body("Your Memi is already syncing on another device. To join it, this phone needs its key.")
+    if (confirm != null) {
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(colors.card).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text("On any device that's already syncing", style = BentoType.cardTitle, color = colors.ink)
+            Text("Open Memi there and tap Allow when it asks about this phone. It shows this code:", style = BentoType.label, color = colors.muted)
+            Text(confirm, style = BentoType.cardTitle.copy(fontFamily = FontFamily.Monospace), color = colors.ink)
+        }
+    }
+    Body("Or type the recovery key from Theme → Sync → Show recovery key on that device.")
     BentoField("Recovery key", text, { text = it; wrong = false }, placeholder = "xxxxxxxx-xxxxxxxx-…", capitalization = KeyboardCapitalization.None,
         // A password-type keyboard doesn't learn or suggest what's typed. The text stays visible.
         keyboardType = androidx.compose.ui.text.input.KeyboardType.Password)
@@ -184,7 +217,7 @@ private fun RecoveryKeyEntry(sync: SyncManager) {
     if (confirmStartOver) {
         app.memi.ui.ConfirmDialog(
             title = "Start sync over?",
-            body = "Without its recovery key, nobody can open the copy in your Google account, so Your Memi will delete it and make a new one from what's on this phone. You'll get a new recovery key. Your other devices will ask for it before they sync again, and anything that's only on them stays there until you set them up.",
+            body = "Without its recovery key, nobody can open the copy in your Google account, so Memi will delete it and make a new one from what's on this phone. You'll get a new recovery key. Your other devices will ask for it before they sync again, and anything that's only on them stays there until you set them up.",
             confirm = "Start over",
             dismiss = "Cancel",
             onDismiss = { confirmStartOver = false },

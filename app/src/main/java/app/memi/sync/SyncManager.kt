@@ -2,9 +2,11 @@ package app.memi.sync
 
 import app.memi.data.AppDatabase
 import app.memi.data.Backup
+import app.memi.data.Merge
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -14,22 +16,23 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /**
- * Keeps an encrypted copy of everything in the Google account you pick, without any further
- * fuss. Changes are uploaded a few seconds after you make them (and when you leave the app), and
- * changes made on another phone are pulled in when you open Memi.
+ * Keeps an encrypted copy of everything in the Google account you pick, and every device that
+ * shares it in step. Changes go up a couple of seconds after you make them; while Memi is open it
+ * checks for changes from your other devices every few seconds.
  *
- * It's one encrypted file, so if two phones change things at the same moment, the one that
- * uploads last wins. For one person's phone plus the odd tablet, that's plenty.
+ * Both copies are merged item by item (data/Merge.kt), so edits on two devices at once are both
+ * kept; only the same item edited in two places at once keeps the later edit.
  */
 class SyncManager(private val platform: SyncPlatform, private val db: AppDatabase, private val scope: CoroutineScope) {
 
     sealed interface Problem {
         /** Google wants you to sign in again (access was removed, or the account changed). */
         data object NeedsSignIn : Problem
-        /** There's a backup but this phone doesn't have its key (not set up from your old phone). */
-        data object NeedsRecoveryKey : Problem
-        /** Both this phone and the account have people in them; you choose which to keep. */
-        data object Conflict : Problem
+        /**
+         * There's a backup but this phone doesn't have its key. [confirm] is the code shown while
+         * this phone is asking your other devices for it.
+         */
+        data class NeedsRecoveryKey(val confirm: String? = null) : Problem
         data class Failed(val message: String) : Problem
     }
 
@@ -40,14 +43,21 @@ class SyncManager(private val platform: SyncPlatform, private val db: AppDatabas
         val lastSyncedAt: Long? = null,
         val problem: Problem? = null,
         val keyFollows: Boolean = false,
+        /** Other devices asking for the key, to allow or turn down. */
+        val joins: List<Join> = emptyList(),
     )
+
+    /** Another device asking for the key. */
+    data class Join(val fileId: String, val device: String, val confirm: String)
 
     private val prefs = platform.settings
     private val vault = platform.keys
     private val mutex = Mutex()
     private var pushJob: Job? = null
+    private var liveJob: Job? = null
+    private var pairingJob: Job? = null
+    private var offer: Pairing.Offer? = null
     private var ignoreChangesUntil = 0L
-    private var lastForeground = 0L
     /** Kept between "connect" and the person answering a recovery-key or conflict question. */
     private var pendingToken: String? = null
 
@@ -82,15 +92,12 @@ class SyncManager(private val platform: SyncPlatform, private val db: AppDatabas
                 enable()
                 pushNow(drive)
             }
-            key == null -> _state.update { it.copy(problem = Problem.NeedsRecoveryKey) }
-            db.people().all().isEmpty() -> {
-                vault.save(key)
-                restoreFrom(drive, key)
-                enable()
-            }
+            key == null -> askForKey(drive)
             else -> {
                 vault.save(key)
-                _state.update { it.copy(problem = Problem.Conflict) }
+                // Throws WrongKey (and asks for the key) if the backup was made with another one.
+                mergeWith(drive, key, remote)
+                enable()
             }
         }
     }
@@ -109,6 +116,7 @@ class SyncManager(private val platform: SyncPlatform, private val db: AppDatabas
             Crypto.open(key, drive.download(remote.id))
         }.isSuccess
         if (ok) {
+            stopAsking()
             vault.save(key)
             _state.update { it.copy(problem = null) }
             connect(token)
@@ -116,26 +124,103 @@ class SyncManager(private val platform: SyncPlatform, private val db: AppDatabas
         return ok
     }
 
+    // --- Getting the key from another device ("start anywhere") --------------------------------
+
+    /**
+     * Leaves a join request in Drive and waits for one of your other devices to answer it. The
+     * person compares the code this shows with the one on the other device and taps Allow there.
+     */
+    private suspend fun askForKey(drive: DriveClient) {
+        stopAsking()
+        val o = Pairing.Offer()
+        offer = o
+        runCatching { drive.create(o.joinFileName, o.joinRequest(platform.deviceLabel)) }
+        _state.update { it.copy(problem = Problem.NeedsRecoveryKey(o.confirmCode)) }
+        pairingJob = scope.launch {
+            val until = System.currentTimeMillis() + Pairing.JOIN_MINUTES * 60_000
+            while (isActive && System.currentTimeMillis() < until) {
+                delay(3_000)
+                if (runCatching { checkPairing(o) }.getOrDefault(false)) return@launch
+            }
+            // The request has expired; still let the person type the recovery key.
+            if (offer === o) _state.update { it.copy(problem = Problem.NeedsRecoveryKey(null)) }
+        }
+    }
+
+    /** Looks once for another device's answer. True once the key is in. */
+    private suspend fun checkPairing(o: Pairing.Offer): Boolean {
+        val token = pendingToken ?: platform.silentToken() ?: return false
+        val drive = DriveClient(token)
+        val file = drive.find(o.fileName) ?: return false
+        val blob = drive.download(file.id)
+        runCatching { drive.delete(file.id) }
+        val key = o.open(blob)
+        // This runs in pairingJob; finishing up mustn't cancel it.
+        pairingJob = null
+        return adoptKey(key)
+    }
+
+    private fun stopAsking() {
+        pairingJob?.cancel()
+        pairingJob = null
+        val o = offer ?: return
+        offer = null
+        scope.launch {
+            runCatching {
+                val drive = DriveClient(pendingToken ?: platform.silentToken() ?: return@launch)
+                drive.find(o.joinFileName)?.let { drive.delete(it.id) }
+            }
+        }
+    }
+
+    // --- Giving the key to another device -------------------------------------------------------
+
+    /** Finds devices asking for the key; old or broken requests are cleared away. */
+    private suspend fun lookForJoins(drive: DriveClient) {
+        val found = mutableListOf<Join>()
+        for (f in drive.list(Pairing.JOIN_PREFIX)) {
+            if (f.name == offer?.joinFileName) continue
+            val req = runCatching { Pairing.parseJoinRequest(drive.download(f.id)) }.getOrNull()
+            if (req == null || System.currentTimeMillis() - req.at > Pairing.JOIN_MINUTES * 60_000) {
+                runCatching { drive.delete(f.id) }
+                continue
+            }
+            found += Join(f.id, req.device, req.scanned.confirmCode)
+        }
+        _state.update { it.copy(joins = found) }
+    }
+
+    /** Allow: sends this device's key to the one that asked, so only it can open it. */
+    suspend fun approveJoin(fileId: String): String? {
+        val key = vault.local() ?: return "Turn on sync here first."
+        val token = platform.silentToken() ?: return "Sign in to Google again in Sync first."
+        return runCatching {
+            val drive = DriveClient(token)
+            val req = Pairing.parseJoinRequest(drive.download(fileId)) ?: return "That request has expired."
+            drive.create(req.scanned.fileName, Pairing.sealFor(req.scanned, key))
+            runCatching { drive.delete(fileId) }
+            _state.update { s -> s.copy(joins = s.joins.filter { it.fileId != fileId }) }
+            null
+        }.getOrElse { "Couldn't reach Google Drive: ${it.message}" }
+    }
+
+    /** Not mine: removes the request. */
+    suspend fun declineJoin(fileId: String) {
+        _state.update { s -> s.copy(joins = s.joins.filter { it.fileId != fileId }) }
+        runCatching { DriveClient(platform.silentToken() ?: return).delete(fileId) }
+    }
+
     // --- Giving a computer the key by QR code (see Pairing.kt) --------------------------------
 
     /** On the phone: sends this phone's key to the computer whose code was scanned. */
     suspend fun sendKeyTo(code: String): String {
-        val scanned = Pairing.parse(code) ?: return "That isn't a Your Memi code. On the computer, open Sync to show one."
+        val scanned = Pairing.parse(code) ?: return "That isn't a Memi code. On the other device, open Sync to show one."
         val key = vault.local() ?: return "Turn on sync on this phone first."
         val token = platform.silentToken() ?: return "Sign in to Google again in Sync first."
         return runCatching {
             DriveClient(token).create(scanned.fileName, Pairing.sealFor(scanned, key))
-            "Sent. Your computer will finish setting up in a few seconds."
+            "Sent. The other device will finish setting up in a few seconds."
         }.getOrElse { "Couldn't reach Google Drive: ${it.message}" }
-    }
-
-    /** Answers [Problem.Conflict]: keep what's in your Google account, or what's on this phone. */
-    suspend fun resolveConflict(keepAccount: Boolean) = guarded("resolve") {
-        val token = pendingToken ?: throw IllegalStateException("Sign in again")
-        val drive = DriveClient(token)
-        val key = vault.local() ?: throw IllegalStateException("No key")
-        if (keepAccount) restoreFrom(drive, key) else pushNow(drive)
-        enable()
     }
 
     /**
@@ -152,6 +237,7 @@ class SyncManager(private val platform: SyncPlatform, private val db: AppDatabas
             val old = drive.find(FILE) ?: break
             drive.delete(old.id)
         }
+        stopAsking()
         vault.save(Crypto.newKey())
         pushNow(drive)
         enable()
@@ -159,6 +245,8 @@ class SyncManager(private val platform: SyncPlatform, private val db: AppDatabas
 
     suspend fun turnOff(forgetKey: Boolean) {
         pushJob?.cancel()
+        liveJob?.cancel()
+        stopAsking()
         prefs.clear()
         platform.signOut()
         if (forgetKey) vault.forget()
@@ -176,25 +264,28 @@ class SyncManager(private val platform: SyncPlatform, private val db: AppDatabas
         prefs.putBoolean(DIRTY, true)
         pushJob?.cancel()
         pushJob = scope.launch {
-            delay(4_000)
+            delay(PUSH_DELAY)
             sync()
         }
     }
 
-    /** Opening the app: bring in anything newer. Leaving it: send anything pending. */
+    /** While Memi is open: check for changes from your other devices every few seconds. */
     fun onForeground() {
-        val now = System.currentTimeMillis()
-        if (!_state.value.enabled || now - lastForeground < 30_000) return
-        lastForeground = now
-        scope.launch { sync() }
+        liveJob?.cancel()
+        liveJob = scope.launch {
+            while (isActive) {
+                if (_state.value.enabled) sync()
+                delay(LIVE_SECONDS * 1_000)
+            }
+        }
     }
 
-    /** Sends anything waiting right now; desktop calls this before the window closes. */
-    suspend fun flush() {
-        pushJob?.cancel()
-        if (_state.value.enabled && prefs.getBoolean(DIRTY, false)) sync()
+    /** Leaving Memi: stop checking, and send anything waiting. */
+    fun onBackground() {
+        liveJob?.cancel()
+        liveJob = null
+        if (_state.value.enabled && prefs.getBoolean(DIRTY, false)) { pushJob?.cancel(); scope.launch { sync() } }
     }
-    fun onBackground() { if (_state.value.enabled && prefs.getBoolean(DIRTY, false)) { pushJob?.cancel(); scope.launch { sync() } } }
 
     fun syncNow() = scope.launch { sync() }
 
@@ -204,7 +295,7 @@ class SyncManager(private val platform: SyncPlatform, private val db: AppDatabas
     private suspend fun sync() = guarded("sync") {
         val token = platform.silentToken()
             ?: run { _state.update { it.copy(problem = Problem.NeedsSignIn) }; return@guarded }
-        val key = vault.local() ?: run { _state.update { it.copy(problem = Problem.NeedsRecoveryKey) }; return@guarded }
+        val key = vault.local() ?: run { _state.update { it.copy(problem = Problem.NeedsRecoveryKey()) }; return@guarded }
         try {
             syncWith(DriveClient(token), key)
         } catch (e: DriveClient.Unauthorized) {
@@ -217,38 +308,42 @@ class SyncManager(private val platform: SyncPlatform, private val db: AppDatabas
 
     private suspend fun syncWith(drive: DriveClient, key: ByteArray) {
         val remote = drive.find(FILE)
-        val dirty = prefs.getBoolean(DIRTY, false)
-        val changedElsewhere = remote != null && remote.modifiedTime != prefs.getString(REMOTE_VERSION)
-        if (dirty && changedElsewhere) {
-            // Only overwrite another device's upload if it uses our key: after a "start over"
-            // elsewhere it won't, and replacing it would undo that. Throws WrongKey otherwise.
-            Crypto.open(key, drive.download(remote!!.id))
-        }
         when {
-            dirty || remote == null -> pushNow(drive, remote)
-            changedElsewhere -> restoreFrom(drive, key, remote)
+            remote == null -> pushNow(drive)
+            remote.modifiedTime != prefs.getString(REMOTE_VERSION) -> mergeWith(drive, key, remote)
+            prefs.getBoolean(DIRTY, false) -> pushNow(drive, remote)
             else -> markSynced(remote.modifiedTime)
         }
+        runCatching { lookForJoins(drive) }
     }
 
     // --- Moving bytes -----------------------------------------------------------------------
 
     private suspend fun pushNow(drive: DriveClient, known: DriveClient.RemoteFile? = null) {
         val key = vault.local() ?: throw IllegalStateException("No key")
-        val blob = Crypto.seal(key, Backup.export(db))
+        val blob = Crypto.seal(key, Backup.export(Backup.snapshot(db)))
         val existing = known ?: drive.find(FILE)
         val saved = if (existing != null) drive.update(existing.id, blob) else drive.create(FILE, blob)
         prefs.putBoolean(DIRTY, false)
         markSynced(saved.modifiedTime)
     }
 
-    private suspend fun restoreFrom(drive: DriveClient, key: ByteArray, known: DriveClient.RemoteFile? = null) {
-        val remote = known ?: drive.find(FILE) ?: return
-        val json = Crypto.open(key, drive.download(remote.id))
-        ignoreChangesUntil = System.currentTimeMillis() + 3_000
-        Backup.import(db, json)
-        prefs.putBoolean(DIRTY, false)
-        markSynced(remote.modifiedTime)
+    /**
+     * Downloads the copy in Drive, merges it with this phone's, and saves the result on whichever
+     * side needs it. A copy made with another key throws WrongKey and nothing changes.
+     */
+    private suspend fun mergeWith(drive: DriveClient, key: ByteArray, remote: DriveClient.RemoteFile) {
+        val doc = Backup.import(Crypto.open(key, drive.download(remote.id)))
+        val merged = Merge.merge(Backup.snapshot(db), doc.snapshot)
+        if (merged.localChanged) {
+            ignoreChangesUntil = System.currentTimeMillis() + 2_000
+            Backup.apply(db, merged.snapshot, merged.peopleFromRemote, doc.photos)
+        }
+        if (merged.remoteChanged || doc.legacy) pushNow(drive, remote)
+        else {
+            prefs.putBoolean(DIRTY, false)
+            markSynced(remote.modifiedTime)
+        }
     }
 
     private fun markSynced(remoteVersion: String?) {
@@ -268,7 +363,10 @@ class SyncManager(private val platform: SyncPlatform, private val db: AppDatabas
         try {
             block()
         } catch (e: Crypto.WrongKey) {
-            _state.update { it.copy(problem = Problem.NeedsRecoveryKey) }
+            if (_state.value.problem !is Problem.NeedsRecoveryKey) {
+                val drive = runCatching { DriveClient(pendingToken ?: platform.silentToken()!!) }.getOrNull()
+                if (drive != null) runCatching { askForKey(drive) } else _state.update { it.copy(problem = Problem.NeedsRecoveryKey()) }
+            }
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -285,5 +383,7 @@ class SyncManager(private val platform: SyncPlatform, private val db: AppDatabas
         const val DIRTY = "dirty"
         const val LAST_SYNC = "lastSync"
         const val REMOTE_VERSION = "remoteVersion"
+        const val PUSH_DELAY = 2_000L
+        const val LIVE_SECONDS = 10L
     }
 }

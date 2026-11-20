@@ -61,7 +61,7 @@ jobs:
             # A release signed with a throwaway key would fail to update every installed copy (Obtainium included).
             echo "::error::Releases need the ANDROID_KEYSTORE_BASE64 secret."; exit 1
           else
-            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret, so this APK is signed with a throwaway key. It won't update an installed Your Memi, and Google sign-in won't work. See docs/RELEASING.md."
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret, so this APK is signed with a throwaway key. It won't update an installed Memi, and Google sign-in won't work. See docs/RELEASING.md."
           fi
       - name: Build
         env:
@@ -73,7 +73,7 @@ jobs:
         run: |
           ARGS=""
           if [ "$RELEASE" = "true" ]; then ARGS="-PmemiVersion=$VERSION"; fi
-          ./gradlew :app:assembleRelease $ARGS --stacktrace
+          ./gradlew :app:testReleaseUnitTest :app:assembleRelease $ARGS --stacktrace
       - name: Name the APK and show its signing fingerprint
         run: |
           V=$(python3 -c "import json;print(json.load(open('app/build/outputs/apk/release/output-metadata.json'))['elements'][0]['versionName'])")
@@ -150,9 +150,14 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: desktop
+          workspaces: |
+            desktop
+            core
       - name: System libraries
         run: sudo apt-get update && sudo apt-get install -y libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libvulkan-dev libfontconfig-dev libfreetype-dev libxcb1-dev libx11-xcb-dev
+      - name: Tests (shared core)
+        working-directory: core
+        run: cargo test --release
       - name: Tests
         working-directory: desktop
         run: cargo test --release

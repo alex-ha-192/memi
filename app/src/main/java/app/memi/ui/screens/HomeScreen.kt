@@ -25,6 +25,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -45,6 +46,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Palette
@@ -93,10 +96,13 @@ data class HomeModel(
     val people: List<Person>,
     val notes: List<Note>,
     val collections: List<NoteCollection>,
+    val freshCollapsed: Boolean = false,
+    /** Other devices asking for the sync key. */
+    val joins: List<app.memi.sync.SyncManager.Join> = emptyList(),
 )
 
 /**
- * Home: the next birthday, what's still fresh (new or due soon) and everyone.
+ * Home: what's coming up, what's still fresh (new or due soon) and everyone.
  * On a phone "Everyone" is a row of photos; in the tablet/desktop list pane it's a list.
  */
 @Composable
@@ -115,9 +121,10 @@ fun HomeScreen(
     peopleActions: PeopleActions,
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
+    onToggleFresh: () -> Unit = {},
 ) {
     val fresh = remember(model) { Insights.stillFresh(model.notes, model.people, model.collections) }
-    val upcoming = remember(model) { Insights.nextUp(model.people, model.notes, model.collections) }
+    val events = remember(model) { Insights.nextEvents(model.people, model.notes, model.collections, NEXT_EVENTS) }
     val hPad = if (asListPane) 0.dp else 22.dp
 
     LazyColumn(
@@ -133,13 +140,17 @@ fun HomeScreen(
             return@LazyColumn
         }
 
+        items(model.joins, key = { "join-${it.fileId}" }) { join ->
+            Box(Modifier.padding(start = hPad, end = hPad, top = 16.dp).animateItem()) { app.memi.ui.sheets.JoinCard(join) }
+        }
+
         if (!asListPane) {
             item(key = "hero") {
                 Box(Modifier.padding(start = hPad, end = hPad, top = 22.dp).animateItem()) {
                     when {
-                        upcoming != null -> UpcomingTile(upcoming) {
-                            val c = upcoming.collection
-                            if (c != null) onOpenCategory(upcoming.person.id, c.id) else onOpenPerson(upcoming.person.id)
+                        events.isNotEmpty() -> EventsTile(events) { u ->
+                            val c = u.collection
+                            if (c != null) onOpenCategory(u.person.id, c.id) else onOpenPerson(u.person.id)
                         }
                         model.people.isEmpty() -> WelcomeTile(onAddPerson)
                         else -> QuietTile(model.people.size, fresh.size)
@@ -152,10 +163,17 @@ fun HomeScreen(
 
         if (fresh.isNotEmpty()) {
             item(key = "freshHeader") {
-                SectionHeader("Still fresh", Modifier.padding(start = hPad, end = hPad, top = if (asListPane) 22.dp else 28.dp, bottom = 12.dp).animateItem(), trailing = "new or due soon")
+                FreshHeader(
+                    collapsed = model.freshCollapsed,
+                    hidden = fresh.size,
+                    onToggle = onToggleFresh,
+                    modifier = Modifier.padding(start = hPad, end = hPad, top = if (asListPane) 22.dp else 28.dp, bottom = 12.dp).animateItem(),
+                )
             }
-            items(fresh.take(if (asListPane) 5 else 6), key = { "fresh-${it.note.id}" }) { item ->
-                FreshCard(item, actions, onOpenCategory, Modifier.padding(horizontal = hPad).padding(bottom = 8.dp).animateItem())
+            if (!model.freshCollapsed) {
+                items(fresh.take(if (asListPane) 5 else 6), key = { "fresh-${it.note.id}" }) { item ->
+                    FreshCard(item, actions, onOpenCategory, Modifier.padding(horizontal = hPad).padding(bottom = 8.dp).animateItem())
+                }
             }
         }
 
@@ -314,31 +332,75 @@ fun FreshCard(item: Insights.FreshItem, actions: NoteActions, onOpenCategory: (L
     )
 }
 
+private const val NEXT_EVENTS = 3
+
+/** The next few birthdays, dated categories and dated plans or notes, soonest first. */
 @Composable
-private fun UpcomingTile(u: Insights.Upcoming, onClick: () -> Unit) {
+private fun EventsTile(events: List<Insights.Upcoming>, onOpen: (Insights.Upcoming) -> Unit) {
     val colors = Bento.colors
-    Tile(
-        Modifier.fillMaxWidth().height(136.dp),
-        color = colors.gift,
-        shape = RoundedCornerShape(28.dp),
-        onClick = onClick,
-        contentPadding = 0.dp,
-    ) {
-        Row(Modifier.fillMaxSize()) {
-            Column(Modifier.weight(1f).fillMaxHeight().padding(horizontal = 20.dp, vertical = 18.dp), verticalArrangement = Arrangement.SpaceBetween) {
-                TagChip("${Dates.dayLabel(u.date)} · ${Dates.inDays(u.date)}", colors.card, colors.giftInk)
-                Column {
-                    Text(u.title, style = BentoType.tileTitle, color = colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Spacer(Modifier.height(5.dp))
-                    val what = u.collection?.name?.lowercase() ?: "ideas"
-                    Text(
-                        when (u.open) { 0 -> "Nothing in $what yet"; 1 -> "1 thing in $what"; else -> "${u.open} things in $what" },
-                        style = BentoType.label, color = colors.giftInk, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    )
+    Tile(Modifier.fillMaxWidth(), color = colors.gift, shape = RoundedCornerShape(28.dp), contentPadding = 14.dp) {
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(Modifier.fillMaxWidth().padding(start = 6.dp, end = 2.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("COMING UP", style = BentoType.caption, color = colors.giftInk, modifier = Modifier.weight(1f))
+                Mascot(Modifier.size(32.dp))
+            }
+            events.forEach { u ->
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).clickable { onOpen(u) }.padding(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(
+                        Modifier.width(62.dp).clip(RoundedCornerShape(14.dp)).background(colors.card).padding(vertical = 6.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(Dates.shortDayLabel(u.date), style = BentoType.label, color = colors.ink, maxLines = 1)
+                        Text(Dates.inDays(u.date), style = BentoType.caption, color = colors.muted, maxLines = 1)
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(u.title, style = BentoType.cardTitle, color = colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(eventDetail(u), style = BentoType.label, color = colors.giftInk, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    PersonPhoto(u.person, Modifier.size(40.dp), RoundedCornerShape(12.dp))
                 }
             }
-            PersonPhoto(u.person, Modifier.width(136.dp).fillMaxHeight(), RoundedCornerShape(0.dp))
         }
+    }
+}
+
+private fun eventDetail(u: Insights.Upcoming): String {
+    val col = u.collection
+    return when {
+        u.note != null && col != null -> "${u.person.firstName} · ${col.name}"
+        u.note != null -> u.person.firstName
+        else -> {
+            val what = col?.name?.lowercase() ?: "ideas"
+            when (u.open) { 0 -> "Nothing in $what yet"; 1 -> "1 thing in $what"; else -> "${u.open} things in $what" }
+        }
+    }
+}
+
+/** "Still fresh", with a chevron to fold the list away (remembered). */
+@Composable
+private fun FreshHeader(collapsed: Boolean, hidden: Int, onToggle: () -> Unit, modifier: Modifier) {
+    val colors = Bento.colors
+    Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = onToggle).padding(end = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Still fresh", style = BentoType.section, color = colors.ink)
+            Spacer(Modifier.width(4.dp))
+            Icon(
+                if (collapsed) Icons.AutoMirrored.Rounded.KeyboardArrowRight else Icons.Rounded.KeyboardArrowDown,
+                contentDescription = if (collapsed) "Show" else "Hide",
+                tint = colors.muted,
+                modifier = Modifier.size(22.dp),
+            )
+        }
+        Spacer(Modifier.weight(1f))
+        Text(if (collapsed) "$hidden hidden" else "new or due soon", style = BentoType.label, color = colors.muted)
     }
 }
 
@@ -369,7 +431,7 @@ private fun QuietTile(people: Int, fresh: Int) {
     Tile(Modifier.fillMaxWidth(), color = colors.plan, shape = RoundedCornerShape(28.dp), contentPadding = 20.dp) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("No birthdays this month", style = BentoType.tileTitle, color = colors.ink)
+                Text("Nothing coming up", style = BentoType.tileTitle, color = colors.ink)
                 Spacer(Modifier.height(6.dp))
                 Text(
                     if (fresh == 0) "All caught up across $people ${if (people == 1) "person" else "people"}." else "$fresh things still fresh below.",

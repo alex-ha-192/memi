@@ -30,6 +30,9 @@ class AppViewModel(private val repo: Repository, private val prefs: ThemePrefs) 
     val collections: StateFlow<List<NoteCollection>> = repo.collections.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val notes: StateFlow<List<Note>> = repo.notes.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val theme: StateFlow<ThemeChoice> = prefs.choice.stateIn(viewModelScope, SharingStarted.Eagerly, ThemeChoice())
+    val freshCollapsed: StateFlow<Boolean> = prefs.freshCollapsed.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    fun toggleFresh() = viewModelScope.launch { prefs.setFreshCollapsed(!freshCollapsed.value) }
 
     private val _toast = MutableStateFlow<Toast?>(null)
     val toast: StateFlow<Toast?> = _toast.asStateFlow()

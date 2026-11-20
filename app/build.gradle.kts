@@ -91,6 +91,10 @@ dependencies {
     // Installs Compose's ahead-of-time profiles on release builds, which makes scrolling and animations much smoother.
     implementation(libs.androidx.profileinstaller)
 
+    // Unit tests for merging and backups (test/), run in CI before every build.
+    testImplementation(libs.junit)
+    testImplementation(libs.json)
+
     // Screenshot tour (androidTest/ScreenTour.kt), run on an emulator in CI.
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

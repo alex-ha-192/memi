@@ -18,6 +18,7 @@ import javax.crypto.spec.GCMParameterSpec
 class AndroidSyncPlatform(private val context: Context) : SyncPlatform {
     override val settings: SettingsStore = PrefsStore(context)
     override val keys: KeyVault = AndroidKeyVault(context)
+    override val deviceLabel: String = android.os.Build.MODEL?.takeIf { it.isNotBlank() } ?: "Android phone"
 
     override suspend fun silentToken(): String? = when (val o = runCatching { GoogleAuth.authorize(context) }.getOrNull()) {
         is GoogleAuth.Outcome.Token -> o.value
