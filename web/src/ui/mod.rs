@@ -138,7 +138,10 @@ fn MenuView() -> impl IntoView {
         let Some(m) = a.menu.get() else { return ().into_any() };
         let close = move || a.menu.set(None);
         let w = crate::state::window_width();
+        let h = web_sys::window().and_then(|w| w.inner_height().ok()).and_then(|v| v.as_f64()).unwrap_or(800.);
         let x = m.x.min(w - 244.).max(8.);
+        // Open upwards when there isn't room below.
+        let y = if m.y + 330. > h { (m.y - 330.).max(8.) } else { m.y };
         let item = move |label: &'static str, danger: bool, f: Box<dyn Fn()>| view! {
             <button class="menu-item" class:danger=danger on:click=move |_| { close(); f(); }>{label}</button>
         };
@@ -197,7 +200,7 @@ fn MenuView() -> impl IntoView {
         };
         view! {
             <div class="scrim clear" on:click=move |_| a.menu.set(None) on:contextmenu=move |e| { e.prevent_default(); a.menu.set(None); }></div>
-            <div class="menu" style=format!("left:{x}px;top:{}px", m.y)>{items}</div>
+            <div class="menu" style=format!("left:{x}px;top:{y}px")>{items}</div>
         }.into_any()
     }
 }
