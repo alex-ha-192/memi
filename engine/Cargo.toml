@@ -1,0 +1,30 @@
+[package]
+name = "memi-engine"
+version = "0.6.1"
+edition = "2021"
+description = "Everything in Memi below the screens: the data, edits, undo, storage interface and sync. Shared by the Android, desktop and web apps."
+license = "GPL-3.0-or-later"
+publish = false
+
+[features]
+# Google Drive over HTTPS with rustls, for the native apps (Android and desktop). The web app
+# brings its own, using the browser's fetch.
+native-drive = ["dep:ureq"]
+# The SQLite store used by the native apps.
+sqlite = ["dep:rusqlite"]
+
+[dependencies]
+memi-core = { path = "../core" }
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ureq = { version = "2", default-features = false, features = ["tls", "json"], optional = true }
+rusqlite = { version = "0.32", features = ["bundled"], optional = true }
+
+[dev-dependencies]
+futures = { version = "0.3", default-features = false, features = ["executor"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+[[test]]
+name = "two_devices"
+required-features = ["sqlite"]
