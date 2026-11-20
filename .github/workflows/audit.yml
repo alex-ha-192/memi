@@ -1,0 +1,31 @@
+# Checks every Rust dependency against the RustSec advisory database: on each change to a lock
+# file, and weekly (advisories appear after code is written). A known vulnerability fails the run.
+name: Security advisories
+
+on:
+  push:
+    paths: ["**/Cargo.toml", "**/Cargo.lock", ".github/workflows/audit.yml"]
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        crate: [core, engine, desktop, web]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+      - name: Audit ${{ matrix.crate }}
+        working-directory: ${{ matrix.crate }}
+        run: |
+          [ -f Cargo.lock ] || cargo generate-lockfile
+          cargo audit

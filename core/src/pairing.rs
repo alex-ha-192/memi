@@ -14,6 +14,7 @@ use anyhow::{anyhow, ensure, Result};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use hkdf::Hkdf;
 use p256::ecdh::EphemeralSecret;
+use p256::elliptic_curve::Generate;
 use p256::pkcs8::{DecodePublicKey, EncodePublicKey};
 use p256::PublicKey;
 use rand::RngCore;
@@ -30,7 +31,7 @@ impl Offer {
     pub fn new() -> Self {
         let mut id = [0u8; 9];
         rand::rngs::OsRng.fill_bytes(&mut id);
-        let secret = EphemeralSecret::random(&mut rand::rngs::OsRng);
+        let secret = EphemeralSecret::generate();
         let public_der = secret.public_key().to_public_key_der().expect("DER").as_bytes().to_vec();
         Offer { id: URL_SAFE_NO_PAD.encode(id), secret, public_der }
     }
@@ -69,7 +70,7 @@ impl Offer {
         let mut aes = Zeroizing::new([0u8; 32]);
         hk.expand(format!("memi-pair-v1:{}", self.id).as_bytes(), &mut *aes).map_err(|_| anyhow!("HKDF"))?;
         let cipher = aes_gcm::Aes256Gcm::new_from_slice(&*aes).map_err(|_| anyhow!("key"))?;
-        let plain = Zeroizing::new(cipher.decrypt(aes_gcm::Nonce::from_slice(iv), &blob[2 + len + 12..]).map_err(|_| anyhow!("Couldn't open the key"))?);
+        let plain = Zeroizing::new(cipher.decrypt(&aes_gcm::Nonce::try_from(iv).map_err(|_| anyhow!("bad nonce"))?, &blob[2 + len + 12..]).map_err(|_| anyhow!("Couldn't open the key"))?);
         ensure!(plain.len() == 32, "Wrong key size");
         let mut key = Zeroizing::new([0u8; 32]);
         key.copy_from_slice(&plain);
@@ -127,7 +128,7 @@ pub fn confirm_code(code: &str) -> String {
 /// On a device that has the key: encrypts `sync_key` so only the device that offered the code can read it.
 pub fn seal_for(to: &Scanned, sync_key: &[u8; 32]) -> Result<Vec<u8>> {
     use aes_gcm::aead::{Aead, KeyInit};
-    let mine = EphemeralSecret::random(&mut rand::rngs::OsRng);
+    let mine = EphemeralSecret::generate();
     let my_der = mine.public_key().to_public_key_der().map_err(|_| anyhow!("DER"))?.as_bytes().to_vec();
     let shared = mine.diffie_hellman(&to.key);
     let hk = Hkdf::<Sha256>::new(Some(&[0u8; 32]), shared.raw_secret_bytes());
@@ -136,7 +137,7 @@ pub fn seal_for(to: &Scanned, sync_key: &[u8; 32]) -> Result<Vec<u8>> {
     let cipher = aes_gcm::Aes256Gcm::new_from_slice(&*aes).map_err(|_| anyhow!("key"))?;
     let mut iv = [0u8; 12];
     rand::rngs::OsRng.fill_bytes(&mut iv);
-    let sealed = cipher.encrypt(aes_gcm::Nonce::from_slice(&iv), sync_key.as_slice()).map_err(|_| anyhow!("encrypt"))?;
+    let sealed = cipher.encrypt(&aes_gcm::Nonce::try_from(&iv[..]).map_err(|_| anyhow!("bad nonce"))?, sync_key.as_slice()).map_err(|_| anyhow!("encrypt"))?;
     let mut out = Vec::with_capacity(2 + my_der.len() + 12 + sealed.len());
     out.extend_from_slice(&(my_der.len() as u16).to_be_bytes());
     out.extend_from_slice(&my_der);

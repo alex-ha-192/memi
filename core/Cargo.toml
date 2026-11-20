@@ -7,13 +7,14 @@ license = "GPL-3.0-or-later"
 publish = false
 
 [dependencies]
+hex = "0.4"
 anyhow = "1"
 serde_json = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
-aes-gcm = "0.10"
-p256 = { version = "0.13", features = ["ecdh", "pkcs8"] }
-hkdf = "0.12"
-sha2 = "0.10"
+aes-gcm = "0.11"
+p256 = { version = "0.14", features = ["ecdh", "pkcs8", "getrandom"] }
+hkdf = "0.13"
+sha2 = "0.11"
 rand = "0.8"
 base64 = "0.22"
 flate2 = "1"
@@ -22,4 +23,6 @@ zeroize = "1"
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 # Randomness and the local clock come from the browser on the web.
 getrandom = { version = "0.2", features = ["js"] }
+# The newer RustCrypto crates use getrandom 0.4; in the browser it reads crypto.getRandomValues.
+getrandom04 = { package = "getrandom", version = "0.4", features = ["wasm_js"] }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std", "wasmbind"] }

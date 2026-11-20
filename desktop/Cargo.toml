@@ -21,7 +21,7 @@ gpui-platform = { package = "gpui-pre-platform", version = "=0.3.12", features =
 gpui-component = "=0.10.0"
 
 # Data
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.43", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
@@ -36,17 +36,14 @@ notify-rust = "4"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif", "bmp"] }
 rfd = { version = "0.15", default-features = false, features = ["xdg-portal", "async-std"] }
 
-# Sync: HTTPS with rustls only, AES-GCM, P-256 for QR pairing, no telemetry anywhere.
+# Sync: HTTPS with rustls only (encryption and pairing are in memi-core), no telemetry anywhere.
 ureq = { version = "2", default-features = false, features = ["tls", "json"] }
 tiny_http = "0.12"
+# OAuth 2 with PKCE for Google sign-in (state, token exchange, refresh, revocation).
+oauth2 = { version = "5", default-features = false, features = ["ureq"] }
+url = "2"
 webbrowser = "1"
-aes-gcm = "0.10"
-p256 = { version = "0.13", features = ["ecdh", "pkcs8"] }
-hkdf = "0.12"
-sha2 = "0.10"
-rand = "0.8"
 base64 = "0.22"
-flate2 = "1"
 qrcode = { version = "0.14", default-features = false }
 keyring = { version = "3", features = ["windows-native", "async-secret-service", "async-io", "crypto-rust"] }
 zeroize = "1"

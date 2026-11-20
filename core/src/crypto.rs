@@ -37,15 +37,15 @@ pub fn new_key() -> Key {
 
 /// The key as text, for the recovery key: 8 groups of 8 hex digits.
 pub fn key_to_text(key: &[u8; 32]) -> String {
-    let hex: String = key.iter().map(|b| format!("{b:02x}")).collect();
-    hex.as_bytes().chunks(8).map(|c| std::str::from_utf8(c).unwrap()).collect::<Vec<_>>().join("-")
+    let text = Zeroizing::new(hex::encode(key));
+    text.as_bytes().chunks(8).map(|c| std::str::from_utf8(c).unwrap()).collect::<Vec<_>>().join("-")
 }
 
+/// Reads a recovery key, ignoring dashes, spaces and case.
 pub fn key_from_text(text: &str) -> Option<Key> {
-    let hex: String = text.chars().filter(|c| c.is_ascii_alphanumeric()).collect::<String>().to_lowercase();
-    if hex.len() != 64 || !hex.chars().all(|c| c.is_ascii_hexdigit()) { return None; }
+    let digits = Zeroizing::new(text.chars().filter(|c| c.is_ascii_alphanumeric()).collect::<String>());
     let mut k = Zeroizing::new([0u8; 32]);
-    for i in 0..32 { k[i] = u8::from_str_radix(&hex[i * 2..i * 2 + 2], 16).ok()?; }
+    hex::decode_to_slice(digits.as_bytes(), &mut *k).ok()?;
     Some(k)
 }
 
@@ -60,7 +60,7 @@ pub fn seal(key: &[u8; 32], plain: &[u8]) -> Result<Vec<u8>> {
     let mut iv = [0u8; IV];
     rand::rngs::OsRng.fill_bytes(&mut iv);
     let cipher = Aes256Gcm::new_from_slice(key).map_err(|_| anyhow!("bad key"))?;
-    let sealed = cipher.encrypt(Nonce::from_slice(&iv), Payload { msg: &packed, aad: MAGIC }).map_err(|_| anyhow!("encryption failed"))?;
+    let sealed = cipher.encrypt(&Nonce::try_from(&iv[..]).map_err(|_| anyhow!("bad nonce"))?, Payload { msg: &packed, aad: MAGIC }).map_err(|_| anyhow!("encryption failed"))?;
     let mut out = Vec::with_capacity(MAGIC.len() + SALT + IV + sealed.len());
     out.extend_from_slice(MAGIC);
     out.extend_from_slice(&[0u8; SALT]);
@@ -75,7 +75,7 @@ pub fn open(key: &[u8; 32], blob: &[u8]) -> Result<Vec<u8>> {
     let iv = &blob[iv_start..iv_start + IV];
     let cipher = Aes256Gcm::new_from_slice(key).map_err(|_| anyhow!("bad key"))?;
     let packed = cipher
-        .decrypt(Nonce::from_slice(iv), Payload { msg: &blob[iv_start + IV..], aad: MAGIC })
+        .decrypt(&Nonce::try_from(iv).map_err(|_| anyhow!("bad nonce"))?, Payload { msg: &blob[iv_start + IV..], aad: MAGIC })
         .map_err(|_| WrongKey)?;
     let mut plain = Vec::new();
     GzDecoder::new(&packed[..]).take(MAX_PLAIN + 1).read_to_end(&mut plain)?;
@@ -85,6 +85,17 @@ pub fn open(key: &[u8; 32], blob: &[u8]) -> Result<Vec<u8>> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn recovery_key_text_round_trip() {
+        let k = super::new_key();
+        let text = super::key_to_text(&k);
+        assert_eq!(text.len(), 64 + 7);
+        assert_eq!(*super::key_from_text(&text).unwrap(), *k);
+        assert_eq!(*super::key_from_text(&text.to_uppercase().replace('-', " ")).unwrap(), *k, "case and separators don't matter");
+        assert!(super::key_from_text("abc").is_none());
+        assert!(super::key_from_text(&"g".repeat(64)).is_none());
+    }
+
     use super::*;
 
     #[test]
