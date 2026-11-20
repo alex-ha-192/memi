@@ -1,0 +1,70 @@
+# Builds the web app (web/, Rust + Leptos compiled to WebAssembly) on every push that touches it,
+# and publishes it to Cloudflare Pages (memi.yourmemi.app) from main.
+#
+# Needs:
+# - Repository variable MEMI_WEB_CLIENT_ID: the Google OAuth "Web application" client ID, from
+#   the same Google Cloud project as the Android and desktop clients. Without it, the web app
+#   works but Sync is off.
+# - The CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID secrets the website already uses.
+# The client secret is never needed: browser sign-in only uses the client ID.
+name: Web app
+
+on:
+  push:
+    branches: [main]
+    paths: ["web/**", "core/**", "website/fonts/**", "website/img/**", ".github/workflows/web.yml"]
+  pull_request:
+    paths: ["web/**", "core/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      MEMI_WEB_CLIENT_ID: ${{ vars.MEMI_WEB_CLIENT_ID }}
+      HAS_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: web
+      - name: Tests
+        working-directory: web
+        run: cargo test --release
+      - name: Install Trunk
+        run: |
+          curl -sSL https://github.com/trunk-rs/trunk/releases/download/v0.21.14/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xz
+          sudo mv trunk /usr/local/bin/
+      - name: Build
+        working-directory: web
+        run: |
+          if [ -z "$MEMI_WEB_CLIENT_ID" ]; then echo "::warning::No MEMI_WEB_CLIENT_ID variable, so Sync is off in this build. See docs/RELEASING.md."; fi
+          trunk build --release
+          ls -la dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web
+          path: web/dist
+      - uses: actions/setup-node@v4
+        if: env.HAS_TOKEN == 'true' && github.ref == 'refs/heads/main'
+        with:
+          node-version: 22
+      - name: Deploy to Cloudflare Pages
+        if: env.HAS_TOKEN == 'true' && github.ref == 'refs/heads/main'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          # The first run creates the Pages project; later runs just deploy.
+          npx --yes wrangler@4 pages project create memi-web --production-branch=main || true
+          npx --yes wrangler@4 pages deploy web/dist --project-name=memi-web --branch=main
