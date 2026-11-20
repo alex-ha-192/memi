@@ -3,7 +3,7 @@
 
 use super::app::*;
 use super::app::Menu;
-use super::drag::{self, DragCategory, DragNote, DragPerson};
+use super::drag::{self, DragCategory, DragPerson};
 use super::theme::{Colors, SCHEMES};
 use super::widgets::*;
 use crate::model::*;
@@ -201,23 +201,7 @@ impl MemiView {
             .child(img("mascot.png").size(px(84.)).flex_none())
     }
 
-    fn upcoming_tile(&self, u: &insights::Upcoming, c: &Colors, cx: &mut Context<Self>) -> impl IntoElement {
-        let today = dates::today();
-        let what = u.collection.as_ref().map(|c| c.name.to_lowercase()).unwrap_or_else(|| "ideas".into());
-        let count = match u.open { 0 => format!("Nothing in {what} yet"), 1 => format!("1 thing in {what}"), n => format!("{n} things in {what}") };
-        let (pid, cid) = (u.person.id, u.collection.as_ref().map(|c| c.id));
-        div().id("upcoming").flex_none().h(px(136.)).rounded(px(28.)).bg(c.gift()).overflow_hidden().flex().cursor_pointer()
-            .on_click(cx.listener(move |this, _, window, cx| match cid {
-                Some(cid) => this.open_category(pid, cid, window, cx),
-                None => { this.selected = Some(pid); this.page_open = true; cx.notify(); }
-            }))
-            .child(div().flex_1().min_w_0().px(px(20.)).py(px(18.)).flex().flex_col().justify_between()
-                .child(div().flex().child(tag(format!("{} · {}", dates::day_label(u.date, today), dates::in_days(u.date, today)), c.card, c.gift_ink())))
-                .child(div().flex().flex_col().gap(px(4.))
-                    .child(tile_title(u.title.clone(), c.ink).truncate())
-                    .child(label(count, c.gift_ink()).truncate())))
-            .child(photo(&u.person, 136., 136., 0., c))
-    }
+
 
     fn fresh_card(&self, i: usize, f: &insights::FreshItem, c: &Colors, cx: &mut Context<Self>) -> Stateful<Div> {
         let today = dates::today();

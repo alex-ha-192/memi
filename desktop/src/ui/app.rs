@@ -4,7 +4,7 @@
 use super::theme::{self, Colors, FONT};
 
 use crate::model::*;
-use crate::store::Store;
+use crate::edits::Edits;
 use crate::sync::{self, Problem};
 use crate::{dates, photos};
 use chrono::NaiveDate;
@@ -13,7 +13,8 @@ use gpui::*;
 use gpui_component::input::{InputEvent, InputState};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use memi_engine::sync::Handle;
+use std::sync::Arc;
 use std::time::Duration;
 
 actions!(memi, [Back, NewPerson, Find]);
@@ -127,7 +128,8 @@ pub struct SyncUi {
     pub busy: bool,
     pub problem: Option<Problem>,
     pub settings: sync::Settings,
-    pub pairing: Option<Arc<sync::pairing::Offer>>,
+    /// While asking your other devices for the key: the request's id.
+    pub pairing: Option<String>,
     pub pairing_code: Option<String>,
     /// The six digits another device shows when this one asks for the key.
     pub pairing_confirm: Option<String>,
@@ -139,7 +141,8 @@ pub struct SyncUi {
 }
 
 pub struct MemiView {
-    pub store: Arc<Mutex<Store>>,
+    /// The Memi (memi-engine), shared with the sync thread.
+    pub memi: sync::Shared,
     pub sync: Arc<sync::Engine>,
     pub dirs: Dirs,
     pub people: Vec<Person>,
@@ -169,7 +172,7 @@ pub struct MemiView {
 }
 
 impl MemiView {
-    pub fn new(store: Arc<Mutex<Store>>, sync: Arc<sync::Engine>, dirs: Dirs, window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub fn new(memi: sync::Shared, sync: Arc<sync::Engine>, dirs: Dirs, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let prefs = std::fs::read(dirs.data.join("settings.json")).ok()
             .and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
         let subs = vec![
@@ -185,7 +188,7 @@ impl MemiView {
             }),
         ];
         let mut this = MemiView {
-            store, sync, dirs, people: vec![], cols: vec![], notes: vec![], selected: None, page_open: false,
+            memi, sync, dirs, people: vec![], cols: vec![], notes: vec![], selected: None, page_open: false,
             search: None, query: String::new(), prefs, theme_open: false, overlay: None, crop: None,
             menu: None, toast: None, sync_ui: SyncUi::default(), toast_seq: 0, push_seq: 0,
             system_dark: is_dark(window.appearance()), _subs: subs, focus: cx.focus_handle(),
@@ -237,20 +240,24 @@ impl MemiView {
 
     // --- Data ------------------------------------------------------------------------------
 
+    /// Refreshes what the screens show from the engine.
     pub fn reload(&mut self) {
-        let store = self.store.lock().unwrap();
-        self.people = store.people().unwrap_or_default();
-        self.cols = store.collections().unwrap_or_default();
-        self.notes = store.notes().unwrap_or_default();
-        drop(store);
+        (self.people, self.cols, self.notes) = self.memi.with(|m| {
+            let s = m.snapshot();
+            (s.people.clone(), s.collections.clone(), s.notes.clone())
+        });
         if let Some(id) = self.selected {
             if !self.people.iter().any(|p| p.id == id) { self.selected = None; }
         }
     }
 
     /// Makes a change, refreshes, and queues an encrypted upload if sync is on.
-    pub fn change<R>(&mut self, cx: &mut Context<Self>, f: impl FnOnce(&mut Store) -> anyhow::Result<R>) -> Option<R> {
-        let result = { let mut s = self.store.lock().unwrap(); f(&mut s) };
+    pub fn change<R>(&mut self, cx: &mut Context<Self>, f: impl FnOnce(&mut Edits) -> anyhow::Result<R>) -> Option<R> {
+        let (result, save_error) = self.memi.with(|m| {
+            let r = m.change(|d| f(&mut Edits { d }));
+            (r, m.save_error.clone())
+        });
+        if let Some(e) = save_error { self.toast(e, None, cx); }
         match result {
             Ok(r) => {
                 self.reload();
@@ -598,7 +605,8 @@ impl MemiView {
                     Err(e) => this.sync_ui.problem = Some(Problem::Failed(e.to_string())),
                 }
                 this.sync_ui.settings = this.sync.snapshot();
-                this.sync_ui.joins = this.sync.joins.lock().unwrap().clone();
+                this.sync_ui.joins = this.sync.joins();
+                if let Some(a) = this.sync.asking() { this.show_asking(a, cx); }
                 this.reload();
                 cx.notify();
             });
@@ -608,7 +616,6 @@ impl MemiView {
     /// After a change: upload a few seconds later, batching quick edits together.
     fn schedule_push(&mut self, cx: &mut Context<Self>) {
         if !self.sync.snapshot().enabled { return; }
-        self.sync.mark_dirty();
         self.push_seq += 1;
         let seq = self.push_seq;
         cx.spawn(async move |this, cx| {
@@ -673,24 +680,36 @@ impl MemiView {
         if allow { self.toast("Sent. The other device will finish setting up in a few seconds.", None, cx); }
     }
 
-    /// The computer shows a QR code and waits for the phone to answer (up to ten minutes).
+    /// Asks your other devices for the key: a request they show with a six-digit code, and a QR
+    /// code a phone can scan. Waits up to fifteen minutes for an answer.
     pub fn start_pairing(&mut self, cx: &mut Context<Self>) {
-        let offer = Arc::new(sync::pairing::Offer::new());
-        self.sync_ui.pairing_code = Some(offer.code());
-        self.sync_ui.pairing_confirm = Some(offer.confirm_code());
-        self.sync_ui.pairing = Some(offer.clone());
-        cx.notify();
         let engine = self.sync.clone();
         cx.spawn(async move |this, cx| {
-            // Also ask in Drive, so a device without a camera can answer.
-            let (e, o) = (engine.clone(), offer.clone());
-            let _ = cx.background_executor().spawn(async move { e.post_join_request(&o) }).await;
-            for _ in 0..200 {
+            let asking = cx.background_executor().spawn(async move { engine.ask_for_key() }).await;
+            let _ = this.update(cx, |this, cx| match asking {
+                Ok(Some(a)) => this.show_asking(a, cx),
+                Ok(None) => {}
+                Err(e) => { this.sync_ui.problem = Some(Problem::Failed(e.to_string())); cx.notify(); }
+            });
+        }).detach();
+    }
+
+    /// Shows the code another device will match, and waits for its answer.
+    fn show_asking(&mut self, a: sync::Asking, cx: &mut Context<Self>) {
+        if self.sync_ui.pairing.as_deref() == Some(a.id.as_str()) { return; }
+        self.sync_ui.pairing = Some(a.id.clone());
+        self.sync_ui.pairing_code = Some(a.code.clone());
+        self.sync_ui.pairing_confirm = Some(a.confirm.clone());
+        cx.notify();
+        let engine = self.sync.clone();
+        let id = a.id;
+        cx.spawn(async move |this, cx| {
+            for _ in 0..300 {
                 cx.background_executor().timer(Duration::from_secs(3)).await;
-                let still_waiting = this.update(cx, |this, _| this.sync_ui.pairing.as_ref().map(|o| Arc::ptr_eq(o, &offer)).unwrap_or(false)).unwrap_or(false);
+                let still_waiting = this.update(cx, |this, _| this.sync_ui.pairing.as_deref() == Some(id.as_str())).unwrap_or(false);
                 if !still_waiting { return; }
-                let (e, o) = (engine.clone(), offer.clone());
-                let done = cx.background_executor().spawn(async move { e.check_pairing(&o) }).await;
+                let e = engine.clone();
+                let done = cx.background_executor().spawn(async move { e.check_pairing() }).await;
                 if let Ok(true) = done {
                     let _ = this.update(cx, |this, cx| {
                         this.sync_ui.pairing = None;
@@ -705,19 +724,15 @@ impl MemiView {
                 }
             }
             let _ = this.update(cx, |this, cx| {
-                if this.sync_ui.pairing.as_ref().map(|o| Arc::ptr_eq(o, &offer)).unwrap_or(false) {
-                    this.sync_ui.pairing = None;
-                    this.sync_ui.pairing_code = None;
-                    cx.notify();
-                }
+                if this.sync_ui.pairing.as_deref() == Some(id.as_str()) { this.stop_pairing(); cx.notify(); }
             });
         }).detach();
     }
 
     pub fn stop_pairing(&mut self) {
-        if let Some(offer) = self.sync_ui.pairing.take() {
+        if self.sync_ui.pairing.take().is_some() {
             let engine = self.sync.clone();
-            std::thread::spawn(move || engine.cancel_join_request(&offer));
+            std::thread::spawn(move || engine.cancel_asking());
         }
         self.sync_ui.pairing_code = None;
         self.sync_ui.pairing_confirm = None;

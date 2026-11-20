@@ -9,8 +9,13 @@ A release you shouldn't notice: nothing looks or works differently. Underneath, 
 ### Changed
 - New `memi-engine` crate: the data and every edit, saving, photos, undo and sync, shared by the Android, desktop and web apps. Each app keeps its own screens (Compose, GPUI, Leptos) and only the small parts that have to differ: Google sign-in, where the key is kept, notifications, photo picking.
 - The web app runs on the engine. It keeps everything already saved in your browser.
+- The desktop app runs on the engine. It opens its existing `memi.db` in place and writes only the rows that changed.
+- Desktop: Google sign-in uses the `oauth2` crate (PKCE, state check, token refresh and revoke) instead of hand-written requests.
 - One SQLite store for Android and desktop. It opens the Android app's existing database in place, including files from 0.5.
 - One Google Drive client and one sync implementation, tested end to end with two devices joining, editing at once, deleting and starting over.
+
+### Removed
+- Desktop: the "which copy should be kept?" choice when first connecting. Since 0.6.0 both copies are merged item by item, so it could no longer appear.
 
 ### Security
 - Security and privacy code moves onto established libraries wherever one exists. See [docs/SECURITY-REVIEW.md](docs/SECURITY-REVIEW.md) for what changed and what stays, and why.

@@ -10,7 +10,8 @@
 // The data model, date rules and Home insights are shared with the web app.
 pub use memi_core::{dates, insights, model};
 mod photos;
-mod store;
+mod edits;
+mod platform;
 mod sync;
 mod ui;
 
@@ -33,8 +34,13 @@ fn main() {
     std::fs::create_dir_all(&data).expect("Couldn't create Your Memi's data folder");
     let photo_dir = data.join("photos");
     let _ = std::fs::create_dir_all(&photo_dir);
-    let store = Arc::new(Mutex::new(store::Store::open(&data.join("memi.db")).expect("Couldn't open Your Memi's data")));
-    let engine = Arc::new(sync::Engine::new(store.clone(), &data, photo_dir.clone()));
+    // Everything below the screens is memi-engine; this computer's storage is its SQLite store.
+    let store = memi_engine::sqlite::SqliteStore::open(&data.join("memi.db")).expect("Couldn't open Memi's data");
+    let snapshot = store.load();
+    let secrets = Arc::new(sync::secrets::Secrets::new(&data));
+    let platform = platform::DesktopPlatform::new(store, photo_dir.clone(), &data, secrets.clone());
+    let memi: sync::Shared = Arc::new(Mutex::new(memi_engine::Memi::new(snapshot, platform::DesktopPlatform::load_sync(&data), platform)));
+    let engine = Arc::new(sync::Engine::new(memi.clone(), secrets));
 
     gpui_platform::application().with_assets(ui::assets::Assets).run(move |cx: &mut App| {
         gpui_component::init(cx);
@@ -48,7 +54,7 @@ fn main() {
         let icon = image::load_from_memory(include_bytes!("../assets/app-icon.png")).ok().map(|i| Arc::new(i.to_rgba8()));
         let bounds = Bounds::centered(None, size(px(1180.), px(820.)), cx);
         let dirs = Dirs { data: data.clone(), photos: photo_dir.clone() };
-        let (store2, engine2) = (store.clone(), engine.clone());
+        let (memi2, engine2) = (memi.clone(), engine.clone());
         let window = cx.open_window(
             WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
@@ -59,7 +65,7 @@ fn main() {
                 ..Default::default()
             },
             move |window, cx| {
-                let view = cx.new(|cx| MemiView::new(store2, engine2, dirs, window, cx));
+                let view = cx.new(|cx| MemiView::new(memi2, engine2, dirs, window, cx));
                 // Before the window closes, send anything not yet synced (for a few seconds at most).
                 let engine = engine.clone();
                 window.on_window_should_close(cx, move |_, _| {

@@ -5,7 +5,6 @@ use gpui::{hsla, rgb, rgba, Hsla};
 /// Raw hex values. Light: bg, ink, muted. Dark: bg, ink, sheet, dock.
 /// Tiles: five (tile, ink) pairs for the category slots: gift, plan, note, extra A, extra B.
 pub use memi_core::palette::SCHEMES;
-use memi_core::palette::Raw;
 
 #[derive(Clone)]
 pub struct Colors {

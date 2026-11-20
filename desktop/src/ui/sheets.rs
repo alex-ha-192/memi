@@ -411,14 +411,6 @@ impl MemiView {
                         cx.notify();
                     })));
             }
-            Some(Problem::Conflict) => {
-                col = col
-                    .child(body("This computer and your Google account both have people in Your Memi already. Which should be kept? The other one is replaced.", c.ink))
-                    .child(primary_button("keep-account", "Use what's in my Google account", !busy, c)
-                        .on_click(cx.listener(|this, _, _, cx| this.run_sync(cx, |e| e.resolve_conflict(true).map(|_| None)))))
-                    .child(secondary_button("keep-here", "Use what's on this computer", false, c)
-                        .on_click(cx.listener(|this, _, _, cx| this.run_sync(cx, |e| e.resolve_conflict(false).map(|_| None)))));
-            }
             _ if !s.enabled => {
                 col = col
                     .child(body("Keep a copy of everything in your own Google account, so your phone and this computer stay in step.", c.ink))

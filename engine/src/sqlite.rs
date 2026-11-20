@@ -248,12 +248,6 @@ impl SqliteStore {
         Ok(rows)
     }
 
-    fn collections_for(&self, person_id: i64) -> Result<Vec<Collection>> {
-        let mut st = self.db.prepare(&format!("{COLLECTIONS} WHERE c.personId = ? ORDER BY c.sortOrder"))?;
-        let rows = st.query_map([person_id], collection)?.collect::<rusqlite::Result<Vec<_>>>()?;
-        Ok(rows)
-    }
-
     pub fn tombstones(&self) -> Result<Vec<Tombstone>> {
         let mut st = self.db.prepare("SELECT uid, deletedAt FROM tombstones")?;
         let rows = st.query_map([], |r| Ok(Tombstone { uid: r.get(0)?, deleted_at: r.get(1)? }))?.collect::<rusqlite::Result<Vec<_>>>()?;
