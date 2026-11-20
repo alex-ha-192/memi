@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Your Memi: remember the little things about the people you love</title>
+  <meta name="description" content="A small app for the specific things you learn about the people in your life: gift ideas, plans, and things not to forget. For Android, Windows and Linux. No accounts, no tracking.">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self'; style-src 'self'; script-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#F4F3F8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#15141E" media="(prefers-color-scheme: dark)">
+  <meta property="og:title" content="Your Memi">
+  <meta property="og:description" content="Remember the little things about the people you love.">
+  <meta property="og:image" content="https://yourmemi.app/shots/desktop-light.png">
+  <link rel="icon" href="/img/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="/img/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+  <link rel="preload" href="/fonts/plus-jakarta-sans-extrabold.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/theme.js"></script>
+</head>
+<body>
+  <div class="wrap">
+    <header class="site">
+      <a class="brand" href="/"><img src="/img/icon.svg" alt="" width="36" height="36">Your Memi</a>
+      <nav class="site" aria-label="Main">
+        <a href="#how" class="hide-small">How it works</a>
+        <a href="/privacy/">Privacy</a>
+        <a href="#download">Download</a>
+        <button class="toggle" type="button" aria-label="Switch theme">
+          <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+          <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg>
+        </button>
+      </nav>
+    </header>
+
+    <main>
+      <div class="hero">
+        <div>
+          <h1>Remember the little things.</h1>
+          <p class="lede">Your sister mentioned a book in March. Your friend can't eat hazelnuts. You promised your dad a day out at the coast. Your Memi is where those go, so they're there when the birthday comes round.</p>
+          <div class="actions">
+            <a class="btn primary" href="#download">Download</a>
+            <a class="btn secondary" href="/privacy/">How your data is handled</a>
+          </div>
+        </div>
+        <div class="hero-art">
+          <div class="shot">
+            <img class="light-only" src="/shots/desktop-light.png" width="1280" height="780" alt="Your Memi on a computer: a list of people on the left, Maya's birthday coming up in six days, and her Gift ideas, Plans and Notes on the right.">
+            <img class="dark-only" src="/shots/desktop-dark.png" width="1280" height="780" alt="Your Memi in dark mode with the theme panel open.">
+          </div>
+          <img class="memi" src="/img/memi.png" width="112" height="112" alt="">
+        </div>
+      </div>
+
+      <section id="how">
+        <h2>How it works</h2>
+        <p class="sub">Add the people you care about. Each of them gets a few categories. When something comes up, it goes in the right one.</p>
+        <div class="bento">
+          <div class="tile peach span-3">
+            <span class="tag">Gift ideas · for Thursday</span>
+            <h3>Ideas that know when they're needed</h3>
+            <p>Gift ideas build up to the person's birthday. Make a category for an anniversary or a trip and it builds up to that date instead, just once or every year.</p>
+            <div class="example">
+              <div>The blue ceramic mug from the market in Porto<small>Added 2 days ago</small></div>
+              <div>Signed copy of the new Sally Rooney novel<small>Added last week</small></div>
+            </div>
+          </div>
+          <div class="tile mint span-3">
+            <span class="tag">New · 3d</span>
+            <h3>Still fresh</h3>
+            <p>The front page shows what you added in the last couple of weeks, and anything with a date coming up, soonest first. Tap one and you're straight in the right list.</p>
+            <div class="example">
+              <div>Pottery class together in the spring<small>Maya · Plans · due Monday</small></div>
+              <div>Takes his coffee black with one sugar<small>Sam · Notes</small></div>
+            </div>
+          </div>
+          <div class="tile butter span-2">
+            <h3>Categories are per person</h3>
+            <p>Everyone starts with Gift ideas, Plans and Notes. Add Books for one friend, Recipes for another. Rename or reorder them whenever you like.</p>
+          </div>
+          <div class="tile lilac span-2">
+            <h3>Hit or miss</h3>
+            <p>When an idea has been used, mark how it went. Next year you'll know the candle was a miss.</p>
+            <div class="marks"><span aria-label="Hit">✓</span><span aria-label="Miss">✕</span></div>
+          </div>
+          <div class="tile sky span-2">
+            <h3>Five colour schemes</h3>
+            <p>Bento, Sorbet, Sea glass, Lavender and Clay, each in light and dark.</p>
+            <div class="swatches" aria-hidden="true"><span class="s1"></span><span class="s2"></span><span class="s3"></span><span class="s4"></span><span class="s5"></span></div>
+          </div>
+          <div class="tile plain span-4">
+            <h3>Your phone and your computer, in step</h3>
+            <p>Turn on sync and pick your Google account. Everything is encrypted on your device before it leaves, and kept in a hidden folder in your own Google Drive that only Your Memi can open. To add a computer, scan the code it shows with your phone. We never see any of it, because there's nothing of ours in between.</p>
+          </div>
+          <div class="tile plain span-2">
+            <h3>No account</h3>
+            <p>There's nothing to sign up for. Sync is optional and uses the Google account you already have.</p>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>What it isn't</h2>
+        <p class="sub">It's deliberately small.</p>
+        <div class="isnt">
+          <div class="tile plain">
+            <h3>Not a contact list</h3>
+            <p>There's no field for addresses or phone numbers. It's for the useful, specific things: what they'd like, what you've planned, what to avoid.</p>
+          </div>
+          <div class="tile plain">
+            <h3>Not a stand-in for the friendship</h3>
+            <p>It won't nudge you to message people or score how often you talk. It just remembers what you tell it, so you can show up with the right thing.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="download">
+        <h2>Download</h2>
+        <p class="sub">Free, open source, and the same app everywhere. The newest version is always on the <a href="https://github.com/alex-ha-192/memi/releases/latest">releases page</a>.</p>
+        <div class="downloads">
+          <div class="dl">
+            <h3>Android</h3>
+            <p>Phones and tablets, Android 8 and newer.</p>
+            <a class="get" href="https://github.com/alex-ha-192/memi/releases/latest">Download the APK <span>from GitHub</span></a>
+            <a class="get" href="obtainium://add/https://github.com/alex-ha-192/memi">Add to Obtainium <span>for automatic updates</span></a>
+          </div>
+          <div class="dl">
+            <h3>Windows</h3>
+            <p>Windows 10 and 11. The installer updates itself in place when you install a newer one.</p>
+            <a class="get" href="https://github.com/alex-ha-192/memi/releases/latest">Installer <span>.msi</span></a>
+            <a class="get" href="https://github.com/alex-ha-192/memi/releases/latest">Portable <span>.exe, no install</span></a>
+          </div>
+          <div class="dl">
+            <h3>Linux</h3>
+            <p>Most distributions, on X11 or Wayland.</p>
+            <a class="get" href="https://flathub.org/apps/app.yourmemi.YourMemi">Flathub <span>recommended</span></a>
+            <a class="get" href="https://github.com/alex-ha-192/memi/releases/latest">AppImage <span>runs anywhere</span></a>
+          </div>
+        </div>
+        <p class="note">On Windows, the installer isn't code-signed yet, so Windows may warn about it, and Smart App Control may block it.</p>
+      </section>
+    </main>
+
+    <footer class="site">
+      <div class="row">
+        <span>Your Memi is free software under the <a href="https://www.gnu.org/licenses/gpl-3.0.html">GPL-3.0</a>.</span>
+        <a href="https://github.com/alex-ha-192/memi">Source code</a>
+        <a href="https://github.com/alex-ha-192/memi/issues">Report a problem</a>
+        <a href="/privacy/">Privacy policy</a>
+      </div>
+      <p class="credits">The elephant is from Microsoft's <a href="https://github.com/microsoft/fluentui-emoji">Fluent Emoji</a> (MIT). Type is <a href="https://github.com/tokotype/PlusJakartaSans">Plus Jakarta Sans</a> (OFL). This site has no cookies, no analytics and no third-party requests.</p>
+    </footer>
+  </div>
+</body>
+</html>

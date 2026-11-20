@@ -16,6 +16,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -84,6 +86,12 @@ fun SyncSheet(onDismiss: () -> Unit) {
             }
         }
         signInError?.let { Text(it, style = BentoType.caption, color = colors.danger) }
+        val uri = LocalUriHandler.current
+        Text(
+            "How sync handles your data",
+            style = BentoType.label, color = colors.ink,
+            modifier = Modifier.clip(RoundedCornerShape(10.dp)).clickable { uri.openUri("https://yourmemi.app/privacy/") }.padding(vertical = 8.dp),
+        )
     }
 }
 

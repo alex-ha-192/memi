@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacy policy · Your Memi</title>
+  <meta name="description" content="Your Memi stores no user data. What the app keeps on your devices, how optional sync works, and what Google can see.">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self'; style-src 'self'; script-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#F4F3F8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#15141E" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="/img/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="/img/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/theme.js"></script>
+</head>
+<body>
+  <div class="wrap">
+    <header class="site">
+      <a class="brand" href="/"><img src="/img/icon.svg" alt="" width="36" height="36">Your Memi</a>
+      <nav class="site" aria-label="Main">
+        <a href="/#how" class="hide-small">How it works</a>
+        <a href="/privacy/" aria-current="page">Privacy</a>
+        <a href="/#download">Download</a>
+        <button class="toggle" type="button" aria-label="Switch theme">
+          <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+          <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg>
+        </button>
+      </nav>
+    </header>
+
+    <main class="doc">
+      <h1>Privacy policy</h1>
+      <p class="updated">Last updated 20 November 2026</p>
+
+      <div class="summary">
+        <p>We store zero user data. Your Memi has no servers, no accounts, no analytics, no crash reporting and no ads. What you write stays on your own devices, plus your own Google Drive if you turn on sync, and that copy is encrypted so only your devices can read it.</p>
+      </div>
+
+      <h2>Who we are</h2>
+      <p>Your Memi is an independent, open-source project. “We” means the people who make it. You can read every line of the code on <a href="https://github.com/alex-ha-192/memi">GitHub</a>, and the easiest way to reach us is to <a href="https://github.com/alex-ha-192/memi/issues">open an issue</a> there.</p>
+
+      <h2>What the app keeps, and where</h2>
+      <table>
+        <tr><th>What</th><th>Where it's kept</th></tr>
+        <tr><td>People, their categories, your notes, dates and profile photos</td><td>In the app's private storage on your phone or computer. Photos are re-saved when you crop them, which drops their location and camera details.</td></tr>
+        <tr><td>Your theme and settings</td><td>On the same device.</td></tr>
+        <tr><td>The sync key (only if you turn on sync)</td><td>On Android, in the Android Keystore. On Windows, in Windows Credential Manager. On Linux, in your desktop's keyring, or in the app's own folder, readable only by your user account, if there's no keyring.</td></tr>
+      </table>
+      <p>None of this is sent to us. We don't have a server to send it to.</p>
+
+      <h2>Sync (optional, off until you turn it on)</h2>
+      <p>Sync keeps your phone, tablet and computers in step by storing one file in your own Google Drive. This is how it works:</p>
+      <ul>
+        <li>The first device to turn on sync creates a random 256-bit key. Before anything leaves your device, it's compressed and encrypted with that key (AES-256-GCM).</li>
+        <li>The encrypted file goes in Google Drive's hidden app data folder. It doesn't appear among your Drive files, and Your Memi can't see your other files. We only ask Google for access to that one folder (the <code>drive.appdata</code> permission).</li>
+        <li>The key never leaves your devices in a readable form. On Android, Google's Block Store backs it up end-to-end encrypted with your screen lock, so a new phone set up from your old one can pick it up. To add a computer, your phone encrypts the key for that one computer (using a one-off code the computer shows) and passes it through the same hidden folder, where the computer collects and deletes it. You can also copy the recovery key by hand.</li>
+      </ul>
+      <p>Because the file is encrypted, Google can't read your notes, names or photos. Google can see that the file exists, its size, when it changed, and which Google account it belongs to. The app shows you the email address of the account you connected, and only on your own device.</p>
+      <p>Your Memi's use and transfer of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements. In plain terms: the only thing the app does with your Google access is read and write its own encrypted file.</p>
+
+      <h2>Google services the Android app uses</h2>
+      <p>On Android, sync relies on parts of Google Play services that run on your phone:</p>
+      <ul>
+        <li><strong>Google sign-in</strong>, to give the app access to its hidden Drive folder.</li>
+        <li><strong>Block Store</strong>, to back up the sync key end-to-end encrypted, as described above.</li>
+        <li><strong>Google code scanner</strong>, only when you use Add a computer. It reads the QR code on your phone, and Google says it doesn't store the images or results. Like other parts of Google's ML Kit, it may send Google basic device information and performance diagnostics.</li>
+      </ul>
+      <p>These are only used once you turn on sync, and they're covered by <a href="https://policies.google.com/privacy">Google's privacy policy</a>. If you never turn on sync, the app never contacts Google or anyone else.</p>
+
+      <h2>What we never do</h2>
+      <ul>
+        <li>No analytics, usage tracking or crash reporting, in the app or on this website.</li>
+        <li>No advertising, and no advertising or tracking libraries.</li>
+        <li>No selling, sharing or renting data. We don't have any to share.</li>
+        <li>No connections to anything except Google, and only for sync: <code>accounts.google.com</code>, <code>oauth2.googleapis.com</code> and <code>www.googleapis.com</code>.</li>
+      </ul>
+
+      <h2>Permissions</h2>
+      <p><strong>Android:</strong> internet access, used only for sync. The app doesn't ask for your camera, contacts, location, microphone or storage. Photos come through Android's photo picker, which only shares the one photo you pick.</p>
+      <p><strong>Linux (Flatpak):</strong> network (sync only), your display, graphics acceleration, and your desktop's keyring. Photos come through your desktop's file chooser, which only shares the file you pick. The app has no access to your home folder.</p>
+      <p><strong>Windows:</strong> a normal desktop app installed just for your user account. Its data is in <code>%APPDATA%\YourMemi</code>, or next to the program for the portable version.</p>
+
+      <h2>Downloads and updates</h2>
+      <p>The app is downloaded from GitHub or Flathub, and Obtainium checks GitHub for updates. Those services may log your IP address when you download, under their own privacy policies. We don't get those logs.</p>
+
+      <h2>This website</h2>
+      <p>yourmemi.app is a set of plain pages: no cookies, no analytics, no fonts or scripts from anywhere else. If you use the light/dark button, your choice is remembered in your own browser and never sent anywhere. The company that hosts the site may keep standard server logs, such as IP addresses and pages requested, for security. We don't have access to them.</p>
+
+      <h2>Deleting your data</h2>
+      <ul>
+        <li><strong>On a device:</strong> remove a person from inside the app, or uninstall the app (on Android, clearing its storage does the same).</li>
+        <li><strong>In Google Drive:</strong> open Google Drive's settings, choose Manage apps, find Your Memi and choose Delete hidden app data. Turning off sync in the app also stops it using Drive.</li>
+        <li><strong>Google access:</strong> you can remove Your Memi's access at any time from <a href="https://myaccount.google.com/connections">your Google account's connections page</a>.</li>
+      </ul>
+
+      <h2>Children</h2>
+      <p>Your Memi isn't aimed at children under 13. We don't collect anything from anyone, of any age.</p>
+
+      <h2>Changes</h2>
+      <p>If this policy changes, the new version will be posted here with a new date, and every change is visible in the project's <a href="https://github.com/alex-ha-192/memi/commits/main/website/privacy/index.html">history on GitHub</a>.</p>
+    </main>
+
+    <footer class="site">
+      <div class="row">
+        <span>Your Memi is free software under the <a href="https://www.gnu.org/licenses/gpl-3.0.html">GPL-3.0</a>.</span>
+        <a href="https://github.com/alex-ha-192/memi">Source code</a>
+        <a href="https://github.com/alex-ha-192/memi/issues">Report a problem</a>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>

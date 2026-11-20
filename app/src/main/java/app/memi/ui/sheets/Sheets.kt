@@ -302,7 +302,7 @@ fun NoteEditorSheet(
     BentoSheet(onDismiss) {
         SheetTitle("Edit note")
         BentoField("Note", text, { text = it }, singleLine = false)
-        Text("Collection", style = BentoType.caption, color = colors.muted, modifier = Modifier.padding(start = 4.dp))
+        Text("Category", style = BentoType.caption, color = colors.muted, modifier = Modifier.padding(start = 4.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             collections.forEach { c ->
                 val selected = c.id == collectionId

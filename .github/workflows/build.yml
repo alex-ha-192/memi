@@ -79,6 +79,11 @@ jobs:
           mkdir -p out
           cp app/build/outputs/apk/release/app-release.apk "out/YourMemi-$V.apk"
           APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          AAPT=$(ls "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -1)
+          echo "Permissions in the final app (the privacy policy lists these):"
+          "$AAPT" dump permissions "out/YourMemi-$V.apk"
+          echo "Content providers that start with the app:"
+          "$AAPT" dump xmltree --file AndroidManifest.xml "out/YourMemi-$V.apk" | grep -A3 "E: provider" | grep -E "android:name" || true
           echo "Signing certificate (the SHA-1 goes in Google Cloud's Android client):"
           "$APKSIGNER" verify --print-certs "out/YourMemi-$V.apk" | grep -E "SHA-1|SHA-256"
       - uses: actions/upload-artifact@v4

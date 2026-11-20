@@ -428,7 +428,8 @@ impl MemiView {
             }
         }
         let _ = window;
-        col
+        col.child(div().id("privacy").cursor_pointer().child(label("How sync handles your data", c.ink))
+            .on_click(|_, _, _| { let _ = webbrowser::open("https://yourmemi.app/privacy/"); }))
     }
 
     // --- The photo cropper ---------------------------------------------------------------------------

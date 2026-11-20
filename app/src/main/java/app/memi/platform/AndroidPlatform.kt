@@ -202,6 +202,8 @@ fun rememberQrScanner(onScanned: (String) -> Unit, onError: (String) -> Unit): (
     val error by rememberUpdatedState(onError)
     return remember(context) {
         {
+            // ML Kit's automatic start-up is removed in the manifest; start it now, on first scan.
+            com.google.mlkit.common.sdkinternal.MlKitContext.initializeIfNeeded(context.applicationContext)
             val options = GmsBarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE).build()
             GmsBarcodeScanning.getClient(context, options).startScan()
                 .addOnSuccessListener { code ->
