@@ -18,7 +18,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: web-${{ github.ref }}
@@ -55,6 +55,14 @@ jobs:
         with:
           name: web
           path: web/dist
+      - name: Keep the build on the ci-web branch (for checking it without Cloudflare)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          cd web/dist
+          git init -q -b ci-web
+          git add -A
+          git -c user.name=ci -c user.email=ci@users.noreply.github.com commit -qm "Web build for ${GITHUB_SHA::7}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" ci-web
       - uses: actions/setup-node@v4
         if: env.HAS_TOKEN == 'true' && github.ref == 'refs/heads/main'
         with:
