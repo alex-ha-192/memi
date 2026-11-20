@@ -11,7 +11,7 @@ use crate::state::{app, App, Confirm, MenuKind, Overlay};
 use crate::{js, sync};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use memi_core::model::{outcome, status};
+use memi_engine::core::model::{outcome, status};
 use wasm_bindgen::prelude::*;
 use widgets::Icon;
 
@@ -38,7 +38,7 @@ pub fn Root() -> impl IntoView {
     js::on_system_dark_change(&dark_cb);
     dark_cb.forget();
     let vis_cb = Closure::<dyn FnMut(bool)>::new(move |visible| {
-        if visible && a.settings.with_untracked(|s| s.sync.enabled) { spawn_local(sync::sync_now(a)); }
+        if visible && a.memi.with_untracked(|m| m.sync.enabled) { spawn_local(sync::sync_now(a)); }
     });
     js::on_visibility_change(&vis_cb);
     vis_cb.forget();
@@ -82,8 +82,8 @@ fn ThemePanel() -> impl IntoView {
         </button>
     };
     let sync_detail = move || {
-        let (enabled, account) = a.settings.with(|s| (s.sync.enabled, s.sync.account.clone()));
-        match (enabled, a.sync.with(|s| s.problem.is_some())) {
+        let (enabled, account) = a.memi.with(|m| (m.sync.enabled, m.sync.account.clone()));
+        match (enabled, a.memi.with(|m| m.status.problem.is_some())) {
             (true, true) => "Needs a look".to_string(),
             (true, false) => account.unwrap_or_else(|| "On".into()),
             _ => "Off".into(),
@@ -101,7 +101,7 @@ fn ThemePanel() -> impl IntoView {
                     }}</span>
                 </div>
                 <div class="schemes">
-                    {memi_core::palette::SCHEMES.iter().map(|s| s.name).map(|name| {
+                    {memi_engine::core::palette::SCHEMES.iter().map(|s| s.name).map(|name| {
                         let p = move || theme::preview(name, a.dark());
                         view! {
                             <button class="scheme" class:on=move || a.settings.with(|s| s.scheme == name)
@@ -147,8 +147,8 @@ fn MenuView() -> impl IntoView {
         };
         let items = match m.kind {
             MenuKind::Note(uid) => {
-                let Some(n) = a.data.with_untracked(|d| d.note(&uid).cloned()) else { return ().into_any() };
-                let others: Vec<(String, String)> = a.data.with_untracked(|d| d.categories_of(&n.person_uid).into_iter()
+                let Some(n) = a.peek(|d| d.note(&uid).cloned()) else { return ().into_any() };
+                let others: Vec<(String, String)> = a.peek(|d| d.categories_of(&n.person_uid).into_iter()
                     .filter(|c| c.uid != n.collection_uid).map(|c| (c.uid, c.name)).collect());
                 let (u1, u2, u3, u4, u5, u6) = (uid.clone(), uid.clone(), uid.clone(), uid.clone(), uid.clone(), uid.clone());
                 let n2 = n.clone();
@@ -167,7 +167,7 @@ fn MenuView() -> impl IntoView {
                         let (u, nm) = (u5.clone(), name.clone());
                         view! { <button class="menu-item" on:click=move |_| {
                             close();
-                            let before = a.data.with_untracked(|d| d.note(&u).cloned());
+                            let before = a.peek(|d| d.note(&u).cloned());
                             a.change(|d| d.move_note(&u, &cu));
                             a.show_toast(format!("Moved to {nm}"), before.map(crate::state::Undo::RestoreNote));
                         }>{format!("Move to {name}")}</button> }
@@ -179,7 +179,7 @@ fn MenuView() -> impl IntoView {
                 }.into_any()
             }
             MenuKind::Person(uid) => {
-                let Some(p) = a.data.with_untracked(|d| d.person(&uid).cloned()) else { return ().into_any() };
+                let Some(p) = a.peek(|d| d.person(&uid).cloned()) else { return ().into_any() };
                 let (u1, u2, u3) = (uid.clone(), uid.clone(), uid.clone());
                 let pinned = p.pinned;
                 view! {
@@ -189,7 +189,7 @@ fn MenuView() -> impl IntoView {
                 }.into_any()
             }
             MenuKind::Category(uid) => {
-                let Some(c) = a.data.with_untracked(|d| d.collection(&uid).cloned()) else { return ().into_any() };
+                let Some(c) = a.peek(|d| d.collection(&uid).cloned()) else { return ().into_any() };
                 let person = c.person_uid.clone().unwrap_or_default();
                 let (u1, u2) = (uid.clone(), uid.clone());
                 view! {
@@ -207,7 +207,7 @@ fn MenuView() -> impl IntoView {
 
 fn done(uid: &str, result: i32) {
     let a = app();
-    let before = a.data.with_untracked(|d| d.note(uid).cloned());
+    let before = a.peek(|d| d.note(uid).cloned());
     a.change(|d| d.mark_done(uid, result));
     let msg = match result { outcome::HIT => "Marked as a hit", outcome::MISS => "Marked as a miss", _ => "Marked done" };
     a.show_toast(msg, before.map(crate::state::Undo::RestoreNote));

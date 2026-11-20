@@ -12,9 +12,9 @@ name: Web app
 on:
   push:
     branches: [main]
-    paths: ["web/**", "core/**", "website/fonts/**", "website/img/**", ".github/workflows/web.yml"]
+    paths: ["web/**", "core/**", "engine/**", "website/fonts/**", "website/img/**", ".github/workflows/web.yml"]
   pull_request:
-    paths: ["web/**", "core/**"]
+    paths: ["web/**", "core/**", "engine/**"]
   workflow_dispatch:
 
 permissions:

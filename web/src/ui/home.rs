@@ -1,12 +1,13 @@
 //! The list: header, Coming up, Still fresh and everyone; or search results.
 
 use super::widgets::{open_menu, tag, Icon, Photo};
-use crate::state::{app, MenuKind, Overlay, Problem};
+use crate::state::{app, MenuKind, Overlay};
+use memi_engine::Problem;
 use crate::sync;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use memi_core::model::*;
-use memi_core::{dates, insights};
+use memi_engine::core::model::*;
+use memi_engine::core::{dates, insights};
 
 const NEXT_EVENTS: usize = 3;
 const FRESH_SHOWN: usize = 6;
@@ -58,8 +59,8 @@ fn Header() -> impl IntoView {
 fn SyncBanner() -> impl IntoView {
     let a = app();
     move || {
-        let on = a.settings.with(|s| s.sync.enabled);
-        match a.sync.with(|s| s.problem.clone()) {
+        let on = a.memi.with(|m| m.sync.enabled);
+        match a.memi.with(|m| m.status.problem.clone()) {
             Some(Problem::NeedsSignIn) if on => view! {
                 <div class="banner">
                     <span class="grow">"Sync is paused until you reconnect to Google."</span>
@@ -75,7 +76,7 @@ fn SyncBanner() -> impl IntoView {
 #[component]
 fn Lists() -> impl IntoView {
     let a = app();
-    let joins = move || a.sync.with(|s| s.joins.clone()).into_iter().map(|j| {
+    let joins = move || a.memi.with(|m| m.status.joins.clone()).into_iter().map(|j| {
         let (f1, f2) = (j.file_id.clone(), j.file_id.clone());
         view! {
             <div class="join card">
@@ -91,7 +92,7 @@ fn Lists() -> impl IntoView {
     }).collect_view();
 
     let hero = move || {
-        let (events, empty, open_total, people) = a.data.with(|d| {
+        let (events, empty, open_total, people) = a.read(|d| {
             let s = &d.snap;
             (insights::next_events(&s.people, &s.notes, &s.collections, dates::today(), NEXT_EVENTS), s.people.is_empty(),
              s.notes.iter().filter(|n| n.status == status::OPEN).count(), s.people.len())
@@ -153,7 +154,7 @@ fn Lists() -> impl IntoView {
 
     let fresh = move || {
         let collapsed = a.settings.with(|s| s.fresh_collapsed);
-        let items = a.data.with(|d| insights::still_fresh(&d.snap.notes, &d.snap.people, &d.snap.collections, dates::today()));
+        let items = a.read(|d| insights::still_fresh(&d.snap.notes, &d.snap.people, &d.snap.collections, dates::today()));
         if items.is_empty() { return ().into_any(); }
         let count = items.len();
         let today = dates::today();
@@ -176,7 +177,7 @@ fn Lists() -> impl IntoView {
     };
 
     let everyone = move || {
-        let (people, notes) = a.data.with(|d| (d.snap.people.clone(), d.snap.notes.clone()));
+        let (people, notes) = a.read(|d| (d.snap.people.clone(), d.snap.notes.clone()));
         if people.is_empty() { return ().into_any(); }
         let n = people.len();
         view! {
@@ -273,7 +274,7 @@ fn SearchResults() -> impl IntoView {
     move || {
         let q = a.search.get().unwrap_or_default().trim().to_lowercase();
         if q.is_empty() { return view! { <p class="caption muted pad">"Type a name, or something you noted down."</p> }.into_any(); }
-        let (people, notes) = a.data.with(|d| {
+        let (people, notes) = a.read(|d| {
             let people: Vec<Person> = d.snap.people.iter().filter(|p| p.name.to_lowercase().contains(&q) || p.relationship.to_lowercase().contains(&q)).cloned().collect();
             let notes: Vec<(Note, Person, String)> = d.snap.notes.iter().filter(|n| n.text.to_lowercase().contains(&q)).take(30)
                 .filter_map(|n| Some((n.clone(), d.person_by_id(n.person_id)?.clone(), d.collection_by_id(n.collection_id).map(|c| c.name.clone()).unwrap_or_default())))

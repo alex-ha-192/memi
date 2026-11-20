@@ -3,12 +3,13 @@
 
 use super::home::note_row;
 use super::widgets::{Icon, Photo};
-use crate::state::{app, Confirm, Overlay, Problem, Undo};
+use crate::state::{app, Confirm, Overlay, Undo};
+use memi_engine::Problem;
 use crate::{js, sync};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use memi_core::dates;
-use memi_core::model::*;
+use memi_engine::core::dates;
+use memi_engine::core::model::*;
 use wasm_bindgen::JsCast;
 
 #[component]
@@ -56,7 +57,7 @@ fn CategorySheet(person: String, collection: String) -> impl IntoView {
         let t = text.get_untracked();
         if t.trim().is_empty() { return; }
         let (pu, cu) = (pu.get_value(), cu.get_value());
-        let name = a.data.with_untracked(|d| d.collection(&cu).map(|c| c.name.clone())).unwrap_or_default();
+        let name = a.peek(|d| d.collection(&cu).map(|c| c.name.clone())).unwrap_or_default();
         let uid = a.change(|d| d.add_note(&pu, &cu, &t, None));
         text.set(String::new());
         a.show_toast(format!("Added to {name}"), Some(Undo::RemoveNote(uid)));
@@ -64,16 +65,16 @@ fn CategorySheet(person: String, collection: String) -> impl IntoView {
     Effect::new(move |_| { if let Some(i) = input.get() { let _ = i.focus(); } });
     let cu = collection.clone();
     let header = move || {
-        let (c, p) = a.data.with(|d| (d.collection(&cu).cloned(), d.person(&person).cloned()));
+        let (c, p) = a.read(|d| (d.collection(&cu).cloned(), d.person(&person).cloned()));
         let (Some(c), Some(p)) = (c, p) else { return view! { {title("Removed")} }.into_any() };
         let today = dates::today();
         let occ = dates::next_occasion(&c, &p, today).map(|d| format!(" · for {} · {}", dates::day_label(d, today), dates::in_days(d, today))).unwrap_or_default();
         view! { {title(c.name.clone())} <p class="caption muted">{format!("{}{occ}", p.name)}</p> }.into_any()
     };
     let cu = collection.clone();
-    let slot = a.data.with_untracked(|d| d.collection(&cu).map(|c| c.slot.rem_euclid(5)).unwrap_or(0));
+    let slot = a.peek(|d| d.collection(&cu).map(|c| c.slot.rem_euclid(5)).unwrap_or(0));
     let list = move || {
-        let notes = a.data.with(|d| d.open_in(&cu));
+        let notes = a.read(|d| d.open_in(&cu));
         if notes.is_empty() { return view! { <p class="muted">"Nothing here yet. Type above and press Enter."</p> }.into_any(); }
         let today = dates::today();
         view! {
@@ -104,7 +105,7 @@ fn CategorySheet(person: String, collection: String) -> impl IntoView {
 #[component]
 fn NoteEditor(uid: String) -> impl IntoView {
     let a = app();
-    let Some(n) = a.data.with_untracked(|d| d.note(&uid).cloned()) else { return ().into_any() };
+    let Some(n) = a.peek(|d| d.note(&uid).cloned()) else { return ().into_any() };
     let text = RwSignal::new(n.text.clone());
     let due = RwSignal::new(n.due_at.map(|d| dates::to_date(d).format("%Y-%m-%d").to_string()).unwrap_or_default());
     let n_save = n.clone();
@@ -140,7 +141,7 @@ fn NoteEditor(uid: String) -> impl IntoView {
 #[component]
 fn PersonEditor(uid: Option<String>) -> impl IntoView {
     let a = app();
-    let existing = uid.as_ref().and_then(|u| a.data.with_untracked(|d| d.person(u).cloned()));
+    let existing = uid.as_ref().and_then(|u| a.peek(|d| d.person(u).cloned()));
     let base = existing.clone().unwrap_or_else(|| Person::new(""));
     let name = RwSignal::new(base.name.clone());
     let rel = RwSignal::new(base.relationship.clone());
@@ -151,7 +152,7 @@ fn PersonEditor(uid: Option<String>) -> impl IntoView {
     let photo = RwSignal::new(None::<Option<Vec<u8>>>);
     let preview = RwSignal::new(None::<String>);
     let busy = RwSignal::new(false);
-    let had_photo = uid.as_ref().map(|u| a.data.with_untracked(|d| d.photos.contains_key(u))).unwrap_or(false);
+    let had_photo = uid.as_ref().map(|u| a.peek(|d| d.person(u).is_some_and(|p| p.photo_path.is_some()))).unwrap_or(false);
     let file = NodeRef::<leptos::html::Input>::new();
     let editing = existing.is_some();
 
@@ -185,9 +186,14 @@ fn PersonEditor(uid: Option<String>) -> impl IntoView {
         };
         let ph = photo.get_untracked();
         if editing {
-            a.change(|data| data.update_person(p, ph));
+            let change = match ph {
+                None => memi_engine::PhotoChange::Keep,
+                Some(None) => memi_engine::PhotoChange::Remove,
+                Some(Some(b)) => memi_engine::PhotoChange::Set(b),
+            };
+            a.with_memi(|m| m.update_person(p, change));
         } else {
-            let new_uid = a.change(|data| data.add_person(p, ph.flatten()));
+            let new_uid = a.with_memi(|m| m.add_person(p, ph.flatten()));
             a.open_person(new_uid);
         }
         a.close_overlay();
@@ -246,7 +252,7 @@ fn PersonEditor(uid: Option<String>) -> impl IntoView {
 #[component]
 fn CategoryEditor(person: String, uid: Option<String>) -> impl IntoView {
     let a = app();
-    let existing = uid.as_ref().and_then(|u| a.data.with_untracked(|d| d.collection(u).cloned()));
+    let existing = uid.as_ref().and_then(|u| a.peek(|d| d.collection(u).cloned()));
     let name = RwSignal::new(existing.as_ref().map(|c| c.name.clone()).unwrap_or_default());
     let occ = RwSignal::new(existing.as_ref().map(|c| c.occasion.clone()).unwrap_or_else(|| occasion::NONE.into()));
     let date = RwSignal::new(existing.as_ref().and_then(|c| c.occasion_day).and_then(dates::from_epoch_day).map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default());
@@ -300,11 +306,11 @@ fn ConfirmSheet(what: Confirm) -> impl IntoView {
     let a = app();
     let (head, body, button) = match &what {
         Confirm::RemovePerson(uid) => {
-            let name = a.data.with_untracked(|d| d.person(uid).map(|p| p.first_name().to_string())).unwrap_or_default();
+            let name = a.peek(|d| d.person(uid).map(|p| p.first_name().to_string())).unwrap_or_default();
             (format!("Remove {name}?"), format!("{name} and everything noted about them will be removed from Memi on all your devices."), "Remove")
         }
         Confirm::RemoveCategory(uid) => {
-            let name = a.data.with_untracked(|d| d.collection(uid).map(|c| c.name.clone())).unwrap_or_default();
+            let name = a.peek(|d| d.collection(uid).map(|c| c.name.clone())).unwrap_or_default();
             (format!("Remove {name}?"), "Anything in it moves to their Notes, so nothing is lost.".into(), "Remove")
         }
         Confirm::StartSyncOver => (
@@ -315,7 +321,7 @@ fn ConfirmSheet(what: Confirm) -> impl IntoView {
     };
     let go = move |_| {
         match &what {
-            Confirm::RemovePerson(uid) => { a.change(|d| d.remove_person(uid)); a.selected.set(None); a.page_open.set(false); }
+            Confirm::RemovePerson(uid) => { a.with_memi(|m| m.remove_person(uid)); a.selected.set(None); a.page_open.set(false); }
             Confirm::RemoveCategory(uid) => a.change(|d| d.remove_collection(uid)),
             Confirm::StartSyncOver => spawn_local(sync::start_over(a)),
         }
@@ -342,12 +348,12 @@ fn SyncSheet() -> impl IntoView {
     let wrong = RwSignal::new(false);
     let shown_key = RwSignal::new(None::<String>);
     let since = |ms: i64| {
-        let mins = (memi_core::model::now_millis() - ms) / 60_000;
+        let mins = (memi_engine::core::model::now_millis() - ms) / 60_000;
         match mins { m if m < 1 => "just now".to_string(), m if m < 60 => format!("{m} min ago"), m if m < 1440 => format!("{} h ago", m / 60), m => format!("{} d ago", m / 1440) }
     };
     let content = move || {
-        let s = a.settings.with(|s| s.sync.clone());
-        let ui = a.sync.get();
+        let s = a.sync_settings();
+        let ui = a.status();
         if sync::CLIENT_ID.is_none() {
             return view! { <p>"Sync isn't set up in this build of Memi."</p> }.into_any();
         }
@@ -360,7 +366,7 @@ fn SyncSheet() -> impl IntoView {
                         <span class="caption muted">"Open Memi there and choose Allow when it asks about this browser. It shows this code:"</span>
                         <span class="code">{ask.confirm.clone()}</span>
                         <span class="caption muted">"Or, on your phone: Theme → Sync → Add a computer, then scan this."</span>
-                        <div class="qr" inner_html=ask.qr_svg.clone()></div>
+                        <div class="qr" inner_html=qr_svg(&ask.code)></div>
                     </div>
                 })}
                 <p class="caption muted">"Or type the recovery key from Theme → Sync → Show recovery key on that device."</p>
@@ -402,7 +408,7 @@ fn SyncSheet() -> impl IntoView {
                 <button class="button grow danger" on:click=move |_| spawn_local(sync::turn_off(a))>"Turn off"</button>
             </div>
             {move || match shown_key.get() {
-                None => view! { <button class="button" on:click=move |_| spawn_local(async move { shown_key.set(Some(sync::recovery_key().await.unwrap_or_else(|| "No key in this browser".into()))) })>"Show recovery key"</button> }.into_any(),
+                None => view! { <button class="button" on:click=move |_| spawn_local(async move { shown_key.set(Some(sync::recovery_key(a).await.unwrap_or_else(|| "No key in this browser".into()))) })>"Show recovery key"</button> }.into_any(),
                 Some(k) => { let k2 = k.clone(); view! {
                     <div class="key">{k}</div>
                     <button class="button" on:click=move |_| js::copy_text(&k2)>"Copy"</button>
@@ -416,4 +422,11 @@ fn SyncSheet() -> impl IntoView {
         {content}
         <a class="link" href="https://yourmemi.app/privacy/" target="_blank" rel="noopener">"How sync handles your data"</a>
     }
+}
+
+/// The pairing code as a QR code, for a phone to scan.
+fn qr_svg(code: &str) -> String {
+    qrcode::QrCode::new(code.as_bytes())
+        .map(|q| q.render::<qrcode::render::svg::Color>().min_dimensions(200, 200).quiet_zone(true).build())
+        .unwrap_or_default()
 }

@@ -4,15 +4,15 @@ use super::home::{drag_over, note_row, set_drag, take_drag};
 use super::widgets::{open_menu, Icon, Photo};
 use crate::state::{app, MenuKind, Overlay};
 use leptos::prelude::*;
-use memi_core::dates;
-use memi_core::model::*;
+use memi_engine::core::dates;
+use memi_engine::core::model::*;
 
 #[component]
 pub fn PersonPage() -> impl IntoView {
     let a = app();
     move || {
         let selected = a.selected.get();
-        let person = a.data.with(|d| selected.as_deref().and_then(|u| d.person(u).cloned()).or_else(|| d.snap.people.first().cloned()));
+        let person = a.read(|d| selected.as_deref().and_then(|u| d.person(u).cloned()).or_else(|| d.snap.people.first().cloned()));
         match person {
             Some(p) => view! { <Person p=p /> }.into_any(),
             None => view! {
@@ -32,7 +32,7 @@ fn Person(p: Person) -> impl IntoView {
     let a = app();
     let today = dates::today();
     let uid = p.uid.clone();
-    let (cats, open, done) = a.data.with_untracked(|d| {
+    let (cats, open, done) = a.peek(|d| {
         let cats = d.categories_of(&uid);
         let open: Vec<Note> = d.snap.notes.iter().filter(|n| n.person_uid == uid && n.status == status::OPEN).cloned().collect();
         let mut done: Vec<Note> = d.snap.notes.iter().filter(|n| n.person_uid == uid && n.status == status::DONE).cloned().collect();
