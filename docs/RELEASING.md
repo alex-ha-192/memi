@@ -8,10 +8,10 @@ Every push to `main` and every pull request runs `.github/workflows/build.yml`:
 
 | Job | Output |
 |---|---|
-| Android APK | `YourMemi-<version>.apk`, plus its permissions and signing fingerprint in the log |
+| Android APK | `YourMemi.apk`, plus its permissions and signing fingerprint in the log |
 | Android screenshots | A screenshot tour on three emulators, uploaded as an artifact and pushed to the `ci-screens` branch |
-| Linux | Tests, the binary, and `YourMemi-<version>-x86_64.AppImage` with its `.zsync` file (built on Ubuntu 22.04) |
-| Windows | Tests and `YourMemi-<version>.msi` (WiX v5, per-user, fixed UpgradeCode so new versions upgrade in place) |
+| Linux | Tests, the binary, and `YourMemi-x86_64.AppImage` with its `.zsync` file (built on Ubuntu 22.04) |
+| Windows | Tests and `YourMemi.msi` (WiX v5, per-user, fixed UpgradeCode so new versions upgrade in place) |
 
 Untagged builds are numbered `0.0.<run>`, so test installers upgrade each other but never replace a real release.
 
@@ -20,7 +20,7 @@ Untagged builds are numbered `0.0.<run>`, so test installers upgrade each other 
 1. Add a `<release version="X.Y.Z" date="YYYY-MM-DD">` entry with notes to `desktop/packaging/app.yourmemi.YourMemi.metainfo.xml` (it ships inside the AppImage).
 2. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.
 
-The tag sets the version everywhere (Android versionName and versionCode, the .exe, the .msi and the AppImage). The Release job attaches every file with `SHA256SUMS.txt` and writes notes with the Android certificate fingerprint. Obtainium picks the APK up from there, and AppImage updaters the AppImage.
+The tag sets the version everywhere (Android versionName and versionCode, the .exe, the .msi and the AppImage). The Release job attaches only `YourMemi.apk`, `YourMemi.msi`, `YourMemi-x86_64.AppImage` and its `.zsync` file, with notes giving the Android certificate fingerprint and SHA-256 checksums. File names never change, so `https://github.com/alex-ha-192/memi/releases/latest/download/<name>` always serves the newest release; the website links there. Obtainium picks the APK up from there, and AppImage updaters the AppImage.
 
 A tagged build fails if the Android signing secrets are missing: a release signed with any other key couldn't update installed copies.
 
@@ -48,7 +48,7 @@ The Google Cloud project has the Drive API enabled and a consent screen that ask
 
 ## AppImage updates
 
-The AppImage carries update information (`gh-releases-zsync|alex-ha-192|memi|latest|YourMemi-*-x86_64.AppImage.zsync`), and each release includes the matching `.zsync` file. Updaters such as Gear Lever and AppImageUpdate use them to fetch only the changed parts of a new release. Keep the file name pattern when renaming anything.
+The AppImage carries update information (`gh-releases-zsync|alex-ha-192|memi|latest|YourMemi-x86_64.AppImage.zsync`), and each release includes the matching `.zsync` file. Updaters such as Gear Lever and AppImageUpdate use them to fetch only the changed parts of a new release. Keep the file names as they are: the update info, the website and the README all point at them.
 
 ## Obtainium
 

@@ -138,6 +138,25 @@ class SyncManager(private val platform: SyncPlatform, private val db: AppDatabas
         enable()
     }
 
+    /**
+     * For when nobody has the recovery key any more: deletes the backup in your Google account
+     * (it can't be opened without its key), makes a new key, and uploads what's on this phone as
+     * the new backup. Other devices then ask for the new recovery key.
+     */
+    suspend fun startOver() = guarded("start over") {
+        val token = pendingToken ?: platform.silentToken() ?: throw IllegalStateException("Sign in to Google again first")
+        val drive = DriveClient(token)
+        // Drive can hold more than one file with the same name; remove them all.
+        var tries = 0
+        while (tries++ < 20) {
+            val old = drive.find(FILE) ?: break
+            drive.delete(old.id)
+        }
+        vault.save(Crypto.newKey())
+        pushNow(drive)
+        enable()
+    }
+
     suspend fun turnOff(forgetKey: Boolean) {
         pushJob?.cancel()
         prefs.clear()
@@ -200,6 +219,11 @@ class SyncManager(private val platform: SyncPlatform, private val db: AppDatabas
         val remote = drive.find(FILE)
         val dirty = prefs.getBoolean(DIRTY, false)
         val changedElsewhere = remote != null && remote.modifiedTime != prefs.getString(REMOTE_VERSION)
+        if (dirty && changedElsewhere) {
+            // Only overwrite another device's upload if it uses our key: after a "start over"
+            // elsewhere it won't, and replacing it would undo that. Throws WrongKey otherwise.
+            Crypto.open(key, drive.download(remote!!.id))
+        }
         when {
             dirty || remote == null -> pushNow(drive, remote)
             changedElsewhere -> restoreFrom(drive, key, remote)

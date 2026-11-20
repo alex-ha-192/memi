@@ -78,15 +78,17 @@ jobs:
         run: |
           V=$(python3 -c "import json;print(json.load(open('app/build/outputs/apk/release/output-metadata.json'))['elements'][0]['versionName'])")
           mkdir -p out
-          cp app/build/outputs/apk/release/app-release.apk "out/YourMemi-$V.apk"
+          # A fixed name, so releases/latest/download/YourMemi.apk always points at the newest.
+          cp app/build/outputs/apk/release/app-release.apk out/YourMemi.apk
+          echo "Version $V"
           APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
           AAPT=$(ls "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -1)
           echo "Permissions in the final app (the privacy policy lists these):"
-          "$AAPT" dump permissions "out/YourMemi-$V.apk"
+          "$AAPT" dump permissions out/YourMemi.apk
           echo "Content providers that start with the app:"
-          "$AAPT" dump xmltree --file AndroidManifest.xml "out/YourMemi-$V.apk" | grep -A3 "E: provider" | grep -E "android:name" || true
+          "$AAPT" dump xmltree --file AndroidManifest.xml out/YourMemi.apk | grep -A3 "E: provider" | grep -E "android:name" || true
           echo "Signing certificate (the SHA-1 goes in Google Cloud's Android client):"
-          "$APKSIGNER" verify --print-certs "out/YourMemi-$V.apk" | grep -E "SHA-1|SHA-256"
+          "$APKSIGNER" verify --print-certs out/YourMemi.apk | grep -E "SHA-1|SHA-256"
       - uses: actions/upload-artifact@v4
         with:
           name: android
@@ -176,8 +178,8 @@ jobs:
           # The update info lets AppImage updaters (Gear Lever, AppImageUpdate) fetch new releases
           # from GitHub; appimagetool also writes the .zsync file they download first.
           ARCH=x86_64 ./appimagetool --appimage-extract-and-run \
-            -u "gh-releases-zsync|alex-ha-192|memi|latest|YourMemi-*-x86_64.AppImage.zsync" \
-            $D "out/YourMemi-$VERSION-x86_64.AppImage"
+            -u "gh-releases-zsync|alex-ha-192|memi|latest|YourMemi-x86_64.AppImage.zsync" \
+            $D out/YourMemi-x86_64.AppImage
           mv -f ./*.AppImage.zsync out/ 2>/dev/null || true
           ls -la out
           cp desktop/target/release/your-memi "out/your-memi-$VERSION-linux-x86_64"
@@ -218,7 +220,7 @@ jobs:
           mkdir -p out
           wix build desktop/packaging/main.wxs -arch x64 \
             -d Version="$VERSION" -d Exe="desktop/target/release/your-memi.exe" -d Assets="desktop/assets" \
-            -o "out/YourMemi-$VERSION.msi"
+            -o out/YourMemi.msi
 
       - uses: actions/upload-artifact@v4
         with:
@@ -235,16 +237,15 @@ jobs:
         with:
           path: files
           merge-multiple: true
-      - name: Checksums
+      - name: Release files and notes
         run: |
-          cd files
-          sha256sum * > SHA256SUMS.txt
-          ls -la
-      - name: Release notes
-        run: |
-          # Lets people (and AppVerifier) check the APK is genuine before installing.
+          # Only what people download: the APK, the Windows installer, the AppImage, and the
+          # AppImage's .zsync file (AppImage updaters need it to fetch new versions).
+          mkdir -p release
+          cp files/YourMemi.apk files/YourMemi.msi files/YourMemi-x86_64.AppImage files/YourMemi-x86_64.AppImage.zsync release/
+          ls -la release
           APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
-          CERT=$("$APKSIGNER" verify --print-certs files/*.apk | grep -m1 "SHA-256 digest" | awk '{print $NF}' | sed 's/../&:/g; s/:$//' | tr a-f A-F)
+          CERT=$("$APKSIGNER" verify --print-certs release/YourMemi.apk | grep -m1 "SHA-256 digest" | awk '{print $NF}' | sed 's/../&:/g; s/:$//' | tr a-f A-F)
           {
             echo "### Android"
             echo "Package \`app.memi\`, signing certificate SHA-256:"
@@ -258,10 +259,15 @@ jobs:
             echo
             echo "### Windows"
             echo "The installer isn't code-signed: if Windows says it protected your PC, choose More info, then Run anyway."
+            echo
+            echo "### Checksums (SHA-256)"
+            echo '```'
+            (cd release && sha256sum YourMemi.apk YourMemi.msi YourMemi-x86_64.AppImage)
+            echo '```'
           } > notes.md
           cat notes.md
       - uses: softprops/action-gh-release@v2
         with:
-          files: files/*
+          files: release/*
           body_path: notes.md
           generate_release_notes: true

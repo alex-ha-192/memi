@@ -377,7 +377,7 @@ private fun Content(vm: AppViewModel) {
 }
 
 @Composable
-private fun ConfirmDialog(title: String, body: String, confirm: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+internal fun ConfirmDialog(title: String, body: String, confirm: String, onDismiss: () -> Unit, onConfirm: () -> Unit, dismiss: String = "Keep") {
     val colors = Bento.colors
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -385,7 +385,7 @@ private fun ConfirmDialog(title: String, body: String, confirm: String, onDismis
         title = { Text(title, style = BentoType.section, color = colors.ink) },
         text = { Text(body, style = BentoType.body, color = colors.muted) },
         confirmButton = { TextButton(onClick = onConfirm) { Text(confirm, style = BentoType.itemTitle, color = colors.danger) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Keep", style = BentoType.itemTitle, color = colors.ink) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(dismiss, style = BentoType.itemTitle, color = colors.ink) } },
     )
 }
 

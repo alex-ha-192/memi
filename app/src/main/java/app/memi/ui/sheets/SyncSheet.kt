@@ -163,7 +163,7 @@ private fun RecoveryKeyEntry(sync: SyncManager) {
     val colors = Bento.colors
     var text by remember { mutableStateOf("") }
     var wrong by remember { mutableStateOf(false) }
-    Body("There's already a Your Memi backup in this Google account, but this phone doesn't have its key yet. That happens when a phone wasn't set up from your old one.")
+    Body("There's a Your Memi backup in this Google account that this phone can't open yet. That happens when a phone wasn't set up from your old one, or sync was started over on another device.")
     Body("On a device that's already syncing, open Theme → Sync → Show recovery key, and type it here.")
     BentoField("Recovery key", text, { text = it; wrong = false }, placeholder = "xxxxxxxx-xxxxxxxx-…", capitalization = KeyboardCapitalization.None,
         // A password-type keyboard doesn't learn or suggest what's typed. The text stays visible.
@@ -173,6 +173,24 @@ private fun RecoveryKeyEntry(sync: SyncManager) {
         sync.launch { if (!useRecoveryKey(text)) wrong = true }
     }
     SecondaryButton("Cancel", Modifier.fillMaxWidth()) { sync.launch { turnOff(forgetKey = false) } }
+
+    // Nobody has the key any more: the only way forward is a fresh backup with a new key.
+    var confirmStartOver by remember { mutableStateOf(false) }
+    Text(
+        "Lost your recovery key? Start over",
+        style = BentoType.label, color = colors.danger,
+        modifier = Modifier.clip(RoundedCornerShape(10.dp)).clickable { confirmStartOver = true }.padding(vertical = 8.dp),
+    )
+    if (confirmStartOver) {
+        app.memi.ui.ConfirmDialog(
+            title = "Start sync over?",
+            body = "Without its recovery key, nobody can open the copy in your Google account, so Your Memi will delete it and make a new one from what's on this phone. You'll get a new recovery key. Your other devices will ask for it before they sync again, and anything that's only on them stays there until you set them up.",
+            confirm = "Start over",
+            dismiss = "Cancel",
+            onDismiss = { confirmStartOver = false },
+            onConfirm = { confirmStartOver = false; sync.launch { startOver() } },
+        )
+    }
 }
 
 private fun sinceLabel(millis: Long): String {

@@ -49,7 +49,7 @@ pub struct Toast {
     id: u64,
 }
 
-pub enum ConfirmAction { RemovePerson(i64), RemoveCategory(Collection) }
+pub enum ConfirmAction { RemovePerson(i64), RemoveCategory(Collection), StartSyncOver }
 
 pub struct PersonEditor {
     pub id: Option<i64>,

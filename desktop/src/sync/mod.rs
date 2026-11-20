@@ -169,6 +169,26 @@ impl Engine {
         Ok(self.adopt_key(&key)?.is_none())
     }
 
+    /// For when nobody has the recovery key any more: deletes the backup in the Google account
+    /// (it can't be opened without its key), makes a new key, and uploads what's on this computer
+    /// as the new backup. Other devices then ask for the new recovery key.
+    pub fn start_over(&self) -> Result<Option<Problem>> {
+        let token = self.token()?;
+        let drive = Drive::new(&token);
+        // Drive can hold more than one file with the same name; remove them all.
+        for _ in 0..20 {
+            match drive.find(FILE)? {
+                Some(old) => drive.delete(&old.id)?,
+                None => break,
+            }
+        }
+        let key = crypto::new_key();
+        self.save_key(&key);
+        self.push(&drive, &key, None)?;
+        self.enable();
+        Ok(None)
+    }
+
     pub fn turn_off(&self) {
         self.auth.sign_out(&self.secrets);
         *self.pending_token.lock().unwrap() = None;
@@ -200,7 +220,12 @@ impl Engine {
         let s = self.snapshot();
         match remote {
             None => self.push(drive, key, None),
-            Some(_) if s.dirty => self.push(drive, key, remote),
+            Some(r) if s.dirty => {
+                // Someone else uploaded since we last looked. Only overwrite it if it uses our key:
+                // after a "start over" elsewhere it won't, and replacing it would undo that.
+                if r.modified_time != s.remote_version { let _ = Zeroizing::new(crypto::open(key, &drive.download(&r.id)?)?); }
+                self.push(drive, key, Some(r))
+            }
             Some(r) if r.modified_time != s.remote_version => self.restore(drive, key, &r),
             Some(r) => { self.mark_synced(r.modified_time); Ok(()) }
         }

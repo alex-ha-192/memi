@@ -12,11 +12,11 @@ Everything stays on your own devices. Sync is optional, and when it's on, your d
 
 | Platform | How |
 |---|---|
-| Android 8+ | The APK from [Releases](../../releases/latest), or [Obtainium](https://obtainium.imranr.dev) for automatic updates: add `https://github.com/alex-ha-192/memi` |
-| Windows 10/11 | `YourMemi-<version>.msi` from [Releases](../../releases/latest). It installs just for you, and a newer one updates it in place |
-| Linux | `YourMemi-<version>-x86_64.AppImage` from [Releases](../../releases/latest). AppImage updaters such as [Gear Lever](https://github.com/mijorus/gearlever) can keep it up to date |
+| Android 8+ | [YourMemi.apk](https://github.com/alex-ha-192/memi/releases/latest/download/YourMemi.apk), or [Obtainium](https://obtainium.imranr.dev) for automatic updates: add `https://github.com/alex-ha-192/memi` |
+| Windows 10/11 | [YourMemi.msi](https://github.com/alex-ha-192/memi/releases/latest/download/YourMemi.msi). It installs just for you, and a newer one updates it in place |
+| Linux | [YourMemi-x86_64.AppImage](https://github.com/alex-ha-192/memi/releases/latest/download/YourMemi-x86_64.AppImage). AppImage updaters such as [Gear Lever](https://github.com/mijorus/gearlever) can keep it up to date |
 
-The Windows installer isn't code-signed, so SmartScreen may say "Windows protected your PC". Choose **More info › Run anyway**. Smart App Control, if you've switched it on, blocks unsigned installers completely.
+Older versions are on the [releases page](../../releases). The Windows installer isn't code-signed, so SmartScreen may say "Windows protected your PC". Choose **More info › Run anyway**. Smart App Control, if you've switched it on, blocks unsigned installers completely.
 
 Each release lists the Android signing certificate's SHA-256 fingerprint, so you can check an APK is genuine before installing it (for example with [AppVerifier](https://github.com/soupslurpr/AppVerifier)). The package name is `app.memi`.
 

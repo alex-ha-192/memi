@@ -305,7 +305,12 @@ impl MemiView {
             .child(self.sheet_title(title, c, cx))
             .child(body(text, c.ink));
         let footer = div().flex().gap(px(8.))
-                .child(secondary_button("cancel", "Cancel", false, c).flex_1().on_click(cx.listener(|this, _, _, cx| { this.overlay = None; cx.notify(); })))
+                .child(secondary_button("cancel", "Cancel", false, c).flex_1().on_click(cx.listener(|this, _, _, cx| {
+                    // Starting sync over is asked from the Sync sheet, so Cancel goes back there.
+                    let back = matches!(&this.overlay, Some(Overlay::Confirm { action: ConfirmAction::StartSyncOver, .. }));
+                    this.overlay = back.then_some(Overlay::Sync);
+                    cx.notify();
+                })))
                 .child(div().id("confirm").flex_1().h(px(48.)).rounded(px(16.)).bg(c.danger).flex().items_center().justify_center().cursor_pointer()
                     .hover(|s| s.opacity(0.9))
                     .child(card_title(confirm, hsla(0., 0., 1., 1.)))
@@ -317,6 +322,13 @@ impl MemiView {
                                     let name = cat.name.clone();
                                     this.change(cx, |s| s.delete_collection(&cat));
                                     this.toast(format!("Removed {name}"), None, cx);
+                                }
+                                ConfirmAction::StartSyncOver => {
+                                    this.stop_pairing();
+                                    this.sync_ui.typing_key = None;
+                                    this.sync_ui.key_shown = None;
+                                    this.overlay = Some(Overlay::Sync);
+                                    this.run_sync(cx, |e| e.start_over());
                                 }
                             }
                         }
@@ -374,6 +386,16 @@ impl MemiView {
                     this.sync_ui.problem = None;
                     this.run_sync(cx, |e| { e.turn_off(); Ok(None) });
                 })));
+                col = col.child(div().id("start-over").cursor_pointer().child(label("Lost your recovery key? Start over", c.danger))
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.overlay = Some(Overlay::Confirm {
+                            title: "Start sync over?".into(),
+                            body: "Without its recovery key, nobody can open the copy in your Google account, so Your Memi will delete it and make a new one from what's on this computer. You'll get a new recovery key. Your other devices will ask for it before they sync again, and anything that's only on them stays there until you set them up.".into(),
+                            confirm: "Start over".into(),
+                            action: ConfirmAction::StartSyncOver,
+                        });
+                        cx.notify();
+                    })));
             }
             Some(Problem::Conflict) => {
                 col = col
