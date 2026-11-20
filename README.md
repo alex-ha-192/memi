@@ -109,7 +109,7 @@ The metainfo file (`desktop/packaging/app.yourmemi.YourMemi.metainfo.xml`) point
 
 ### Website
 
-`website/` is plain HTML and CSS, deployed to Cloudflare Pages (project `yourmemi`) by `.github/workflows/website.yml`. It needs the secrets `CLOUDFLARE_API_TOKEN` (with Cloudflare Pages: Edit) and `CLOUDFLARE_ACCOUNT_ID`; until they're set, the workflow skips the deploy. Security headers are in `website/_headers`. The site loads nothing from other sites, sets no cookies, and only stores the theme toggle in your browser. Keep Cloudflare's Web Analytics, Email Address Obfuscation and Rocket Loader off: each injects a script, which the site's security policy blocks and the privacy policy rules out.
+`website/` is plain HTML and CSS, deployed to Cloudflare Pages (project `yourmemi`) by `.github/workflows/website.yml`. It needs the secrets `CLOUDFLARE_API_TOKEN` (with Cloudflare Pages: Edit) and `CLOUDFLARE_ACCOUNT_ID`; until they're set, the workflow skips the deploy. Security headers are in `website/_headers`. The site loads nothing from other sites, sets no cookies, and only stores the theme toggle in your browser. Keep Cloudflare's Web Analytics off (the privacy policy promises no analytics), and Email Address Obfuscation and Rocket Loader too, since they rewrite the pages.
 
 ## Google Cloud setup
 
