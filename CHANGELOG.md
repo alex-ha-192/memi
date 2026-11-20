@@ -2,7 +2,7 @@
 
 Every release of Memi, newest first. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/). Releases 0.1 to 0.4 came before this repository; their entries are reconstructed from the project's notes and have no exact dates.
 
-## [Unreleased] — 0.6.3
+## [0.6.3] — 2026-11-20
 
 ### Changed
 - Sync is easy to find: Home shows its state beside the date (Synced, Syncing…, Not synced or Sign in), and tapping it opens Sync. On desktop it sits above "Your people".
