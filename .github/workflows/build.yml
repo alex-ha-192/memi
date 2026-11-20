@@ -312,7 +312,7 @@ jobs:
             echo '```'
           } > notes.md
           cat notes.md
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           # The tag that was pushed, or (run by hand) a new one on this commit.
           tag_name: v${{ needs.version.outputs.version }}
