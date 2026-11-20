@@ -18,7 +18,7 @@ Untagged builds are numbered `0.0.<run>`, so test installers upgrade each other 
 ## Making a release
 
 1. Add a `<release version="X.Y.Z" date="YYYY-MM-DD">` entry with notes to `desktop/packaging/app.yourmemi.YourMemi.metainfo.xml` (it ships inside the AppImage).
-2. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+2. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`. Or, without pushing a tag, run the Build workflow on main by hand with the version (`gh workflow run build.yml --ref main -f release=X.Y.Z`, or Actions › Build › Run workflow): the release creates the tag on that commit.
 
 The tag sets the version everywhere (Android versionName and versionCode, the .exe, the .msi and the AppImage). The Release job attaches only `YourMemi.apk`, `YourMemi.msi`, `YourMemi-x86_64.AppImage` and its `.zsync` file, with notes giving the Android certificate fingerprint and SHA-256 checksums. File names never change, so `https://github.com/alex-ha-192/memi/releases/latest/download/<name>` always serves the newest release; the website links there. Obtainium picks the APK up from there, and AppImage updaters the AppImage.
 
