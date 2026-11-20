@@ -17,6 +17,17 @@ android {
         versionName = "0.4.0"
     }
 
+    signingConfigs {
+        create("release") {
+            System.getenv("MEMI_KEYSTORE")?.let { path ->
+                storeFile = file(path)
+                storePassword = System.getenv("MEMI_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("MEMI_KEY_ALIAS")
+                keyPassword = System.getenv("MEMI_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -25,9 +36,10 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // Signs with the debug key so a release build can be installed straight away.
-            // Swap in your own signing config before sharing the app.
-            signingConfig = signingConfigs.getByName("debug")
+            // CI signs with the key from the repo's secrets (see README > Automatic builds).
+            // Locally, it falls back to your debug key so a release build installs straight away.
+            signingConfig = if (System.getenv("MEMI_KEYSTORE") != null) signingConfigs.getByName("release")
+            else signingConfigs.getByName("debug")
         }
     }
 

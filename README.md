@@ -17,6 +17,37 @@ You need **Android Studio** (Ladybug 2024.2 or newer) on your computer.
 
 From a terminal instead: `./gradlew installDebug` with the phone plugged in (needs JDK 17 and the Android SDK).
 
+## Automatic builds
+
+GitHub builds Memi on every push to `main`: the Android APK, the Windows .msi and the Linux .deb. Find them under the repo's **Actions** tab › the latest **Build** run › **Artifacts**. To make a proper release, push a version tag. The three files are then attached to a GitHub Release with a permanent download link:
+
+```
+git tag v0.4.0 && git push origin v0.4.0
+```
+
+On Android, [Obtainium](https://obtainium.imranr.dev) can watch the repo's releases and install updates for you.
+
+### One-time setup: secrets
+
+Add these under the repo's **Settings › Secrets and variables › Actions › New repository secret**:
+
+| Secret | What it is |
+|---|---|
+| `ANDROID_KEYSTORE_BASE64` | The key that signs the APK, as base64 (see below) |
+| `ANDROID_KEYSTORE_PASSWORD` | Its password |
+| `ANDROID_KEY_ALIAS` | The key's name inside it |
+| `ANDROID_KEY_PASSWORD` | The key's password |
+| `GOOGLE_CLIENT_JSON` | The whole contents of your desktop `google-client.json` (for desktop sync) |
+
+**The easiest signing key is the one you already use.** Android Studio's debug key signed the Memi on your phone, and its SHA-1 is already in Google Cloud. If CI uses the same key, its APKs install as normal updates and sync keeps working. The file is `~/.android/debug.keystore` on Linux, or `%USERPROFILE%\.android\debug.keystore` on Windows. Its details are always the same: password `android`, alias `androiddebugkey`, key password `android`. To get it as base64:
+
+- Linux: `base64 -w0 ~/.android/debug.keystore`
+- Windows (PowerShell): `[Convert]::ToBase64String([IO.File]::ReadAllBytes("$env:USERPROFILE\.android\debug.keystore"))`
+
+If you use a different key instead, Android won't install its APKs over the existing app. You'd need to uninstall first, so copy your recovery key out of Sync first, and add the new key's SHA-1 to Google Cloud. Each build prints its SHA-1 in the "Name the APK" step.
+
+Without the secrets the builds still run, but the APK is signed with a throwaway key and the desktop builds have no sync.
+
 ## Desktop (Windows and Linux)
 
 The desktop app is the same Memi in a window: the same screens, data and sync. Below 840 pixels wide it shows one screen at a time; wider, it uses the two-pane layout. With a mouse, a pencil sits on the profile photo and a ⋯ button appears when you hover over an item (right-click works too). Escape goes back: it closes the sheet on top, then search, then the theme panel.
