@@ -11,13 +11,13 @@ hex = "0.4"
 anyhow = "1"
 serde_json = "1"
 # Dates and the local time zone. Replaced chrono (flagged as unmaintained) in 0.7.
-jiff = "0.2"
+jiff = "1.0"
 aes-gcm = "0.11"
 p256 = { version = "0.14", features = ["ecdh", "pkcs8", "getrandom"] }
 hkdf = "0.13"
 sha2 = "0.11"
-rand = "0.8"
-base64 = "0.22"
+rand = "0.10"
+base64 = "0.23"
 flate2 = "1"
 zeroize = "1"
 
