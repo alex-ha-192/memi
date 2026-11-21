@@ -215,8 +215,10 @@ impl MemiView {
             let detail = match (&u.note, &u.collection) {
                 (Some(_), Some(col)) => format!("{} · {}", u.person.first_name(), col.name),
                 (Some(_), None) => u.person.first_name().to_string(),
-                (None, col) => {
-                    let what = col.as_ref().map(|c| c.name.to_lowercase()).unwrap_or_else(|| "ideas".into());
+                // A birthday with no category building up to it: say who they are.
+                (None, None) => if u.person.relationship.is_empty() { "Birthday".to_string() } else { u.person.relationship.clone() },
+                (None, Some(col)) => {
+                    let what = col.name.to_lowercase();
                     match u.open { 0 => format!("Nothing in {what} yet"), 1 => format!("1 thing in {what}"), n => format!("{n} things in {what}") }
                 }
             };

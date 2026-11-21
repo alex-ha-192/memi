@@ -401,8 +401,10 @@ private fun eventDetail(u: Insights.Upcoming): String {
     return when {
         u.note != null && col != null -> "${u.person.firstName} · ${col.name}"
         u.note != null -> u.person.firstName
+        // A birthday with no category building up to it: say who they are.
+        col == null -> u.person.relationship.ifBlank { "Birthday" }
         else -> {
-            val what = col?.name?.lowercase() ?: "ideas"
+            val what = col.name.lowercase()
             when (u.open) { 0 -> "Nothing in $what yet"; 1 -> "1 thing in $what"; else -> "${u.open} things in $what" }
         }
     }

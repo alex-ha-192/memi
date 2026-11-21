@@ -141,8 +141,14 @@ object Insights {
         }
         val gift = collections.filter { it.personId == p.id && it.occasion == Occasion.BIRTHDAY }
         val open = notes.count { n -> n.status == Status.OPEN && gift.any { it.id == n.collectionId } }
-        val what = gift.firstOrNull()?.name?.lowercase() ?: "gift ideas"
-        val body = when (open) { 0 -> "Nothing in $what yet."; 1 -> "1 thing in $what."; else -> "$open things in $what." }
+        val what = gift.firstOrNull()?.name?.lowercase()
+        val body = when {
+            // Nothing building up to the birthday: just a nudge.
+            what == null -> "See what you've noted for $name."
+            open == 0 -> "Nothing in $what yet."
+            open == 1 -> "1 thing in $what."
+            else -> "$open things in $what."
+        }
         Reminder(p, "${p.uid}:$date:$before", title, body)
     }
 

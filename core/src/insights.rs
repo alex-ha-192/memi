@@ -170,8 +170,11 @@ pub fn reminders_due(people: &[Person], notes: &[Note], cols: &[Collection], tod
         };
         let gift: Vec<&Collection> = cols.iter().filter(|c| c.person_id == Some(p.id) && c.occasion == occasion::BIRTHDAY).collect();
         let open = notes.iter().filter(|n| n.status == status::OPEN && gift.iter().any(|c| c.id == n.collection_id)).count();
-        let what = gift.first().map(|c| c.name.to_lowercase()).unwrap_or_else(|| "gift ideas".into());
-        let body = match open { 0 => format!("Nothing in {what} yet."), 1 => format!("1 thing in {what}."), n => format!("{n} things in {what}.") };
+        let body = match gift.first().map(|c| c.name.to_lowercase()) {
+            // Nothing building up to the birthday: just a nudge.
+            None => format!("See what you've noted for {name}."),
+            Some(what) => match open { 0 => format!("Nothing in {what} yet."), 1 => format!("1 thing in {what}."), n => format!("{n} things in {what}.") },
+        };
         out.push(Reminder { key: format!("{}:{date}:{before}", p.uid), person: p.clone(), date, days_before: before, title, body });
     }
     out
