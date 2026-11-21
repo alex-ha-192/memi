@@ -34,6 +34,8 @@ extern "C" {
     pub fn on_visibility_change(callback: &Closure<dyn FnMut(bool)>);
     #[wasm_bindgen(js_name = isVisible)]
     pub fn is_visible() -> bool;
+    #[wasm_bindgen(js_name = onInteraction)]
+    pub fn on_interaction(callback: &Closure<dyn FnMut()>);
     #[wasm_bindgen(js_name = copyText)]
     pub fn copy_text(text: &str);
     #[wasm_bindgen(js_name = deviceLabel)]
