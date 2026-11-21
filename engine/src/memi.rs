@@ -43,6 +43,10 @@ pub struct SyncSettings {
     /// Changed here since the last upload.
     pub dirty: bool,
     pub last_sync: Option<i64>,
+    /// The person has said they've put the recovery key somewhere safe (or typed it in here).
+    pub key_saved: bool,
+    /// "Not now" on the save-your-key reminder: don't show it again before this time (ms).
+    pub key_nudge_after: Option<i64>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -166,6 +170,19 @@ impl<P: Platform> Memi<P> {
     pub fn recovery_key(&self) -> Option<String> { self.key().map(|k| crypto::key_to_text(&k)) }
     pub(crate) fn save_key(&mut self, key: &[u8; 32]) { self.platform.save_key(key) }
     pub fn device_label(&self) -> String { self.platform.device_label() }
+
+    /// Two weeks, in milliseconds: how long "Not now" quiets the save-your-key reminder.
+    pub const KEY_NUDGE_SNOOZE: i64 = 14 * 24 * 60 * 60 * 1000;
+
+    /// Whether to remind the person to save their recovery key: sync has worked at least once,
+    /// they haven't said they've saved it, and they haven't just said "Not now". (Sync having
+    /// worked means there's a key; this doesn't ask the keyring, so it's cheap to call every frame.)
+    pub fn wants_key_nudge(&self, now: i64) -> bool {
+        let s = &self.sync;
+        s.enabled && s.last_sync.is_some() && !s.key_saved && s.key_nudge_after.is_none_or(|t| now >= t)
+    }
+    pub fn key_saved(&mut self) { self.update_sync(|s| { s.key_saved = true; s.key_nudge_after = None }); }
+    pub fn snooze_key_nudge(&mut self, now: i64) { self.update_sync(|s| s.key_nudge_after = Some(now + Self::KEY_NUDGE_SNOOZE)); }
 
     /// Everything, photos included, encrypted for Drive.
     pub fn sealed(&self, key: &[u8; 32]) -> Result<Vec<u8>> {

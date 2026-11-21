@@ -116,6 +116,9 @@ impl MemiView {
             for j in self.sync_ui.joins.clone() {
                 body = body.child(self.join_card(&j, c, cx).mb(px(14.)));
             }
+            if self.sync.wants_key_nudge() {
+                body = body.child(self.key_nudge_card(c, cx).mb(px(14.)));
+            }
             // The big tile: the next few things coming up, a welcome, or all quiet.
             let events = insights::next_events(&self.people, &self.notes, &self.cols, today, NEXT_EVENTS);
             if self.people.is_empty() {
@@ -171,6 +174,23 @@ impl MemiView {
                     .on_click(cx.listener(move |this, _, _, cx| this.answer_join(allow_id.clone(), true, cx))))
                 .child(secondary_button("join-deny", "Not mine", false, c).flex_1()
                     .on_click(cx.listener(move |this, _, _, cx| this.answer_join(deny_id.clone(), false, cx)))))
+    }
+
+    /// Sync is on but they haven't said they've kept the recovery key anywhere.
+    fn key_nudge_card(&self, c: &Colors, cx: &mut Context<Self>) -> Stateful<Div> {
+        div().id("key-nudge").flex_none().rounded(px(24.)).bg(c.card).border_1().border_color(c.line).p(px(18.)).flex().flex_col().gap(px(8.))
+            .child(div().flex().items_center().gap(px(8.)).child(icon("key-round", 18., c.ink)).child(card_title("Save your recovery key", c.ink)))
+            .child(body("If you lose this computer and your other devices, it's the only way to open your synced copy. Keep it somewhere safe, like a password manager.", c.muted))
+            .child(div().flex().gap(px(8.)).mt(px(4.))
+                .child(primary_button("key-nudge-show", "Show key", true, c).flex_1().on_click(cx.listener(|this, _, _, cx| {
+                    this.sync_ui.key_shown = this.sync.recovery_key();
+                    this.overlay = Some(Overlay::Sync);
+                    cx.notify();
+                })))
+                .child(secondary_button("key-nudge-later", "Not now", false, c).flex_1().on_click(cx.listener(|this, _, _, cx| {
+                    this.sync.snooze_key_nudge();
+                    cx.notify();
+                }))))
     }
 
     fn welcome_tile(&self, c: &Colors, cx: &mut Context<Self>) -> impl IntoElement {

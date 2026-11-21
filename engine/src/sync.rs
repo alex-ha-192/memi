@@ -148,8 +148,10 @@ pub async fn connect<H: Handle, D: Drive>(h: &H, drive: &D) -> bool {
         let key = h.with(|m| m.key());
         match (remote, key) {
             (None, key) => {
+                // A brand-new key hasn't been written down anywhere yet.
+                let fresh = key.is_none();
                 let key = key.unwrap_or_else(|| *crypto::new_key());
-                h.with(|m| { m.save_key(&key); m.update_sync(|s| s.enabled = true) });
+                h.with(|m| { m.save_key(&key); m.update_sync(|s| { s.enabled = true; if fresh { s.key_saved = false; s.key_nudge_after = None; } }) });
                 push(h, drive, &key, None).await?;
             }
             (Some(_), None) => ask(h, drive).await?,
@@ -180,6 +182,8 @@ pub async fn use_recovery_key<H: Handle, D: Drive>(h: &H, drive: &D, text: &str)
     let key = *key;
     let mut ok = false;
     guarded(h, async { ok = adopt_key(h, drive, key).await?; Ok(()) }).await;
+    // They had it to type in, so it's already kept somewhere.
+    if ok { h.with(|m| m.key_saved()); }
     ok
 }
 
@@ -271,7 +275,7 @@ pub async fn start_over<H: Handle, D: Drive>(h: &H, drive: &D) -> bool {
         }
         cancel_asking(h, drive).await;
         let key = *crypto::new_key();
-        h.with(|m| { m.save_key(&key); m.update_sync(|s| s.enabled = true); m.set_status(|s| s.problem = None) });
+        h.with(|m| { m.save_key(&key); m.update_sync(|s| { s.enabled = true; s.key_saved = false; s.key_nudge_after = None }); m.set_status(|s| s.problem = None) });
         push(h, drive, &key, None).await
     }).await
 }

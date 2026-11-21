@@ -56,7 +56,14 @@ class SyncManager(
         val keyFollows: Boolean = false,
         /** Other devices asking for the key, to allow or turn down. */
         val joins: List<Join> = emptyList(),
-    )
+        /** They've said the recovery key is kept somewhere safe. */
+        val keySaved: Boolean = false,
+        /** The engine's view: sync works, the key isn't saved, and they haven't just said "Not now". */
+        val wantsKeyNudge: Boolean = false,
+    ) {
+        /** Remind them to save the recovery key, unless it already follows them to a new phone. */
+        val keyNudge get() = wantsKeyNudge && !keyFollows
+    }
 
     /** Another device asking for the key. */
     data class Join(val fileId: String, val device: String, val confirm: String)
@@ -96,6 +103,8 @@ class SyncManager(
             problem = problem,
             keyFollows = keyFollows,
             joins = s.joins.map { Join(it.fileId, it.device, it.confirm) },
+            keySaved = s.sync.keySaved,
+            wantsKeyNudge = engine.wantsKeyNudge(System.currentTimeMillis()),
         )
     }
 
@@ -228,6 +237,15 @@ class SyncManager(
     }
 
     fun recoveryKey(): String? = engine.recoveryKey()
+
+    /** Set by the save-your-key reminder so the Sync sheet opens with the key showing. */
+    var revealKeyOnOpen = false
+
+    /** They've put the recovery key somewhere safe: no more reminders. */
+    fun keySaved() { engine.keySaved(); _state.value = read(_state.value.keyFollows) }
+
+    /** "Not now" on the reminder: quiet for two weeks. */
+    fun snoozeKeyNudge() { engine.snoozeKeyNudge(System.currentTimeMillis()); _state.value = read(_state.value.keyFollows) }
 
     // --- Staying in sync -------------------------------------------------------------------
 

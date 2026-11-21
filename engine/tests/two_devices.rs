@@ -290,3 +290,36 @@ fn the_first_android_databases_upgrade_like_room_did() {
     assert_eq!((sams_notes.name.as_str(), sams_notes.person_uid.as_deref()), ("Notes", Some(coffee.person_uid.as_str())));
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn the_save_your_key_reminder() {
+    let drive = FakeDrive::default();
+    let phone = device("Pixel 8");
+    let now = 1_795_262_400_000;
+    assert!(!phone.lock().unwrap().wants_key_nudge(now), "not before sync is on");
+
+    // Turning sync on makes a new key nobody has written down: remind them.
+    assert!(block_on(sync::connect(&phone, &drive)));
+    assert!(block_on(sync::sync_now(&phone, &drive)));
+    assert!(phone.lock().unwrap().wants_key_nudge(now));
+
+    // "Not now" quiets it for two weeks, then it comes back.
+    phone.lock().unwrap().snooze_key_nudge(now);
+    assert!(!phone.lock().unwrap().wants_key_nudge(now + 1000));
+    assert!(phone.lock().unwrap().wants_key_nudge(now + Memi::<Device>::KEY_NUDGE_SNOOZE));
+
+    // "I've saved it" ends it for good.
+    phone.lock().unwrap().key_saved();
+    assert!(!phone.lock().unwrap().wants_key_nudge(now + Memi::<Device>::KEY_NUDGE_SNOOZE * 10));
+
+    // A device that's given the key by typing it in already has it somewhere.
+    let laptop = device("Linux computer");
+    assert!(block_on(sync::connect(&laptop, &drive)));
+    let text = phone.lock().unwrap().recovery_key().unwrap();
+    assert!(block_on(sync::use_recovery_key(&laptop, &drive, &text)));
+    assert!(!laptop.lock().unwrap().wants_key_nudge(now));
+
+    // Starting over makes a new key, so the reminder is back.
+    assert!(block_on(sync::start_over(&laptop, &drive)));
+    assert!(laptop.lock().unwrap().wants_key_nudge(now));
+}

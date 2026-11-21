@@ -74,6 +74,8 @@ pub struct App {
     pub page_open: RwSignal<bool>,
     pub overlay: RwSignal<Option<Overlay>>,
     pub theme_open: RwSignal<bool>,
+    /// Open Sync with the recovery key already showing (from the save-your-key reminder).
+    pub reveal_key: RwSignal<bool>,
     pub search: RwSignal<Option<String>>,
     pub toast: RwSignal<Option<Toast>>,
     pub system_dark: RwSignal<bool>,
@@ -115,6 +117,7 @@ impl App {
             page_open: RwSignal::new(false),
             overlay: RwSignal::new(None),
             theme_open: RwSignal::new(false),
+            reveal_key: RwSignal::new(false),
             search: RwSignal::new(None),
             toast: RwSignal::new(None),
             system_dark: RwSignal::new(js::system_dark()),

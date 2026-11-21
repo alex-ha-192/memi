@@ -32,6 +32,9 @@ impl Engine {
     pub fn joins(&self) -> Vec<Join> { self.memi.with(|m| m.status.joins.clone()) }
     pub fn asking(&self) -> Option<Asking> { self.memi.with(|m| m.status.asking.clone()) }
     pub fn recovery_key(&self) -> Option<String> { self.memi.with(|m| m.recovery_key()) }
+    pub fn wants_key_nudge(&self) -> bool { self.memi.with(|m| m.wants_key_nudge(memi_engine::core::model::now_millis())) }
+    pub fn key_saved(&self) { self.memi.with(|m| m.key_saved()) }
+    pub fn snooze_key_nudge(&self) { self.memi.with(|m| m.snooze_key_nudge(memi_engine::core::model::now_millis())) }
 
     fn problem(&self) -> Option<Problem> { self.memi.with(|m| m.status.problem.clone()) }
 

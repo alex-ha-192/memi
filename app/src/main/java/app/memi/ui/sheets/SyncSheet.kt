@@ -77,7 +77,7 @@ fun SyncSheet(onDismiss: () -> Unit) {
                 }
                 state.joins.forEach { JoinCard(it) }
                 AddComputer(sync)
-                RecoveryKeyReveal(sync, state.keyFollows)
+                RecoveryKeyReveal(sync, state.keyFollows, state.keySaved)
             }
         }
         signInError?.let { Text(it, style = BentoType.caption, color = colors.danger) }
@@ -114,12 +114,36 @@ private fun Status(title: String, detail: String) {
     }
 }
 
+/** On Home: sync is on, but they haven't said they've kept the recovery key anywhere. */
+@Composable
+fun KeyNudgeCard(onOpenSync: () -> Unit) {
+    val sync = LocalSync.current
+    val colors = Bento.colors
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(colors.card).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text("Save your recovery key", style = BentoType.cardTitle, color = colors.ink)
+        Text(
+            "If you lose this phone and your other devices, it's the only way to open your synced copy. Keep it somewhere safe, like a password manager.",
+            style = BentoType.label, color = colors.muted,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            PrimaryButton("Show key", Modifier.weight(1f)) { sync.revealKeyOnOpen = true; onOpenSync() }
+            SecondaryButton("Not now", Modifier.weight(1f)) { sync.snoozeKeyNudge() }
+        }
+    }
+}
+
 /** Optional: the key written out, for setting up a phone that wasn't restored from this one. */
 @Composable
-private fun RecoveryKeyReveal(sync: SyncManager, follows: Boolean) {
+private fun RecoveryKeyReveal(sync: SyncManager, follows: Boolean, keySaved: Boolean) {
     val colors = Bento.colors
     val context = androidx.compose.ui.platform.LocalContext.current
-    var shown by remember { mutableStateOf<String?>(null) }
+    // Arriving from the reminder on Home: show it straight away.
+    var shown by remember {
+        mutableStateOf(if (sync.revealKeyOnOpen) sync.recoveryKey().also { sync.revealKeyOnOpen = false } else null)
+    }
     Text(
         when {
             follows -> "Your key is backed up with your screen lock, so a new phone set up from this one picks sync up by itself."
@@ -134,6 +158,7 @@ private fun RecoveryKeyReveal(sync: SyncManager, follows: Boolean) {
         Text(key, style = BentoType.label.copy(fontFamily = FontFamily.Monospace), color = colors.ink,
             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(colors.track).padding(12.dp))
         SecondaryButton("Copy", Modifier.fillMaxWidth()) { copySecret(context, key) }
+        if (!keySaved) PrimaryButton("I've saved it somewhere safe", Modifier.fillMaxWidth()) { sync.keySaved() }
     }
 }
 

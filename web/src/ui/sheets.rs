@@ -347,6 +347,11 @@ fn SyncSheet() -> impl IntoView {
     let key_text = RwSignal::new(String::new());
     let wrong = RwSignal::new(false);
     let shown_key = RwSignal::new(None::<String>);
+    // Arriving from the save-your-key reminder: show the key straight away.
+    if a.reveal_key.get_untracked() {
+        a.reveal_key.set(false);
+        spawn_local(async move { shown_key.set(sync::recovery_key(a).await) });
+    }
     let since = |ms: i64| {
         let mins = (memi_engine::core::model::now_millis() - ms) / 60_000;
         match mins { m if m < 1 => "just now".to_string(), m if m < 60 => format!("{m} min ago"), m if m < 1440 => format!("{} h ago", m / 60), m => format!("{} d ago", m / 1440) }
@@ -369,7 +374,7 @@ fn SyncSheet() -> impl IntoView {
                         <div class="qr" inner_html=qr_svg(&ask.code)></div>
                     </div>
                 })}
-                <p class="caption muted">"Or type the recovery key from Theme → Sync → Show recovery key on that device."</p>
+                <p class="caption muted">"Or type the recovery key from Settings → Sync → Show recovery key on that device."</p>
                 <input placeholder="xxxxxxxx-xxxxxxxx-…" autocomplete="off" spellcheck="false" prop:value=move || key_text.get()
                     on:input=move |e| { key_text.set(input_value(&e)); wrong.set(false); } />
                 <Show when=move || wrong.get()><span class="caption danger">"That key doesn't open this backup."</span></Show>
@@ -412,6 +417,9 @@ fn SyncSheet() -> impl IntoView {
                 Some(k) => { let k2 = k.clone(); view! {
                     <div class="key">{k}</div>
                     <button class="button" on:click=move |_| js::copy_text(&k2)>"Copy"</button>
+                    {move || (!a.memi.with(|m| m.sync.key_saved)).then(|| view! {
+                        <button class="button ink" on:click=move |_| memi_engine::sync::Handle::with(&a.handle(), |m| m.key_saved())>"I've saved it somewhere safe"</button>
+                    })}
                 }.into_any() }
             }}
             <p class="caption muted">"Keep the recovery key somewhere safe. With it, any device can open your Memi."</p>

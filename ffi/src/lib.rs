@@ -114,6 +114,10 @@ pub struct SyncState {
     pub remote_version: Option<String>,
     pub dirty: bool,
     pub last_sync: Option<i64>,
+    #[uniffi(default = false)]
+    pub key_saved: bool,
+    #[uniffi(default = None)]
+    pub key_nudge_after: Option<i64>,
 }
 
 #[derive(uniffi::Enum, Clone)]
@@ -195,13 +199,13 @@ fn note_in(n: Note) -> m::Note {
 
 impl From<SyncSettings> for SyncState {
     fn from(s: SyncSettings) -> Self {
-        SyncState { enabled: s.enabled, account: s.account, remote_version: s.remote_version, dirty: s.dirty, last_sync: s.last_sync }
+        SyncState { enabled: s.enabled, account: s.account, remote_version: s.remote_version, dirty: s.dirty, last_sync: s.last_sync, key_saved: s.key_saved, key_nudge_after: s.key_nudge_after }
     }
 }
 
 impl From<SyncState> for SyncSettings {
     fn from(s: SyncState) -> Self {
-        SyncSettings { enabled: s.enabled, account: s.account, remote_version: s.remote_version, dirty: s.dirty, last_sync: s.last_sync }
+        SyncSettings { enabled: s.enabled, account: s.account, remote_version: s.remote_version, dirty: s.dirty, last_sync: s.last_sync, key_saved: s.key_saved, key_nudge_after: s.key_nudge_after }
     }
 }
 
@@ -459,6 +463,13 @@ impl Engine {
     pub fn turn_off(&self, forget_key: bool) { self.memi.with(|m| m.turn_off_sync(forget_key)); }
 
     pub fn recovery_key(&self) -> Option<String> { self.memi.with(|m| m.recovery_key()) }
+
+    /// Whether Home should remind them to save the recovery key.
+    pub fn wants_key_nudge(&self, now: i64) -> bool { self.memi.with(|m| m.wants_key_nudge(now)) }
+    /// They've put the recovery key somewhere safe.
+    pub fn key_saved(&self) { self.memi.with(|m| m.key_saved()); }
+    /// "Not now": quiet the reminder for two weeks.
+    pub fn snooze_key_nudge(&self, now: i64) { self.memi.with(|m| m.snooze_key_nudge(now)); }
 
     /// Whether the last step left a sign-in problem (to retry with a fresh token).
     pub fn needs_sign_in(&self) -> bool { self.problem() == Some(memi_engine::Problem::NeedsSignIn) }

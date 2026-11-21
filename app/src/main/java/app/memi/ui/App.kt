@@ -162,8 +162,8 @@ private fun Content(vm: AppViewModel) {
         syncState.enabled && syncState.problem == null -> SyncBadge.Synced
         else -> SyncBadge.NotSynced
     }
-    val model = remember(people, notes, collections, freshCollapsed, syncState.joins, syncBadge) {
-        HomeModel(people, notes, collections, freshCollapsed, syncState.joins, syncBadge)
+    val model = remember(people, notes, collections, freshCollapsed, syncState.joins, syncBadge, syncState.keyNudge) {
+        HomeModel(people, notes, collections, freshCollapsed, syncState.joins, syncBadge, keyNudge = syncState.keyNudge)
     }
     val actions = remember(collections) {
         NoteActions(

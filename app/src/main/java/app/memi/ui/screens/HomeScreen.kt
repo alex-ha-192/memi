@@ -115,6 +115,8 @@ data class HomeModel(
     val joins: List<app.memi.sync.SyncManager.Join> = emptyList(),
     /** What the chip beside the date says about sync. */
     val sync: SyncBadge = SyncBadge.NotSynced,
+    /** Remind them to save the recovery key. */
+    val keyNudge: Boolean = false,
 )
 
 /** Sync's state in a word or two, beside the date on Home. Tapping it opens Sync. */
@@ -163,6 +165,11 @@ fun HomeScreen(
 
         items(model.joins, key = { "join-${it.fileId}" }) { join ->
             Box(Modifier.padding(start = hPad, end = hPad, top = 16.dp).animateItem()) { app.memi.ui.sheets.JoinCard(join) }
+        }
+        if (model.keyNudge) {
+            item(key = "keyNudge") {
+                Box(Modifier.padding(start = hPad, end = hPad, top = 16.dp).animateItem()) { app.memi.ui.sheets.KeyNudgeCard(onOpenSync) }
+            }
         }
 
         if (!asListPane) {

@@ -451,6 +451,13 @@ impl MemiView {
                                     this.toast("Copied. Paste it somewhere safe, then clear your clipboard.", None, cx);
                                 })))
                                 .child(secondary_button("hide", "Hide", false, c).flex_1().on_click(cx.listener(|this, _, _, cx| { this.sync_ui.key_shown = None; cx.notify(); }))));
+                        if !self.sync.snapshot().key_saved {
+                            col = col.child(primary_button("key-saved", "I've saved it somewhere safe", true, c).on_click(cx.listener(|this, _, _, cx| {
+                                this.sync.key_saved();
+                                this.toast("Thanks. Memi won't remind you about it again.", None, cx);
+                                cx.notify();
+                            })));
+                        }
                     }
                 }
             }

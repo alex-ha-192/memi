@@ -116,6 +116,17 @@ fn Lists() -> impl IntoView {
             </div>
         }
     }).collect_view();
+    // Sync is on but they haven't said they've kept the recovery key anywhere.
+    let key_nudge = move || a.memi.with(|m| m.wants_key_nudge(memi_engine::core::model::now_millis())).then(|| view! {
+        <div class="join card">
+            <b>"Save your recovery key"</b>
+            <span class="caption muted">"If you lose this browser's data and your other devices, it's the only way to open your synced copy. Keep it somewhere safe, like a password manager."</span>
+            <div class="row gap">
+                <button class="button ink grow" on:click=move |_| { a.reveal_key.set(true); a.theme_open.set(false); a.overlay.set(Some(Overlay::Sync)); }>"Show key"</button>
+                <button class="button grow" on:click=move |_| memi_engine::sync::Handle::with(&a.handle(), |m| m.snooze_key_nudge(memi_engine::core::model::now_millis()))>"Not now"</button>
+            </div>
+        </div>
+    });
 
     let hero = move || {
         let (events, empty, open_total, people) = a.read(|d| {
@@ -213,7 +224,7 @@ fn Lists() -> impl IntoView {
     };
 
     view! {
-        <div class="joins">{joins}</div>
+        <div class="joins">{joins}{key_nudge}</div>
         {hero}
         {fresh}
         {everyone}
