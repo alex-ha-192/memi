@@ -48,3 +48,90 @@ pub const SCHEMES: &[Scheme] = &[
         dark: Raw { base: &[0x1A1613, 0xF6F0EA, 0x27211D, 0x2E2722], tiles: [0x4E2C1E, 0xF6C3AC, 0x2E3520, 0xCFDDA6, 0x3F3524, 0xEFD8A8, 0x3A2A40, 0xE6C8F0, 0x203236, 0xB4D8DE], strips: [0xB8664A, 0x7A8E48, 0xA88A50, 0x8A6A96, 0x5A8890], tones: [0x7A4E3B, 0x5E6844, 0x7A6644, 0x6E584A, 0x4E6466, 0x744E48, 0x66603E, 0x5E544C] },
     },
 ];
+
+/// Look A4 (1.0): a person's card is tinted in their tone. Returns (card, ink): the card's
+/// background and the colour for its secondary line, which always reaches 4.5:1 contrast
+/// against the card. `background` is the screen behind the card (the scheme's base[0]).
+pub fn person_card(tone: u32, background: u32, dark: bool) -> (u32, u32) {
+    let card = if dark { mix(tone, background, 0.45) } else { mix(tone, 0xFFFFFF, 0.5) };
+    let (h, s, l) = hsl(tone);
+    let s = s.max(0.35).min(0.75);
+    let mut l = if dark { l.max(0.70) } else { l.min(0.40) };
+    let mut ink = from_hsl(h, s, l);
+    while contrast(ink, card) < 4.5 && l > 0.0 && l < 1.0 {
+        l += if dark { 0.01 } else { -0.01 };
+        ink = from_hsl(h, s, l.clamp(0.0, 1.0));
+    }
+    (card, ink)
+}
+
+fn channels(c: u32) -> [f64; 3] { [(c >> 16 & 0xFF) as f64 / 255.0, (c >> 8 & 0xFF) as f64 / 255.0, (c & 0xFF) as f64 / 255.0] }
+fn pack(v: [f64; 3]) -> u32 {
+    let b = |x: f64| (x.clamp(0.0, 1.0) * 255.0).round() as u32;
+    b(v[0]) << 16 | b(v[1]) << 8 | b(v[2])
+}
+/// `amount` of the way from `a` to `b`.
+fn mix(a: u32, b: u32, amount: f64) -> u32 {
+    let (a, b) = (channels(a), channels(b));
+    pack(std::array::from_fn(|i| a[i] + (b[i] - a[i]) * amount))
+}
+/// WCAG contrast ratio between two colours.
+pub fn contrast(a: u32, b: u32) -> f64 {
+    let lum = |c: u32| {
+        let v = channels(c).map(|x| if x <= 0.04045 { x / 12.92 } else { ((x + 0.055) / 1.055).powf(2.4) });
+        0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]
+    };
+    let (x, y) = (lum(a), lum(b));
+    (x.max(y) + 0.05) / (x.min(y) + 0.05)
+}
+fn hsl(c: u32) -> (f64, f64, f64) {
+    let [r, g, b] = channels(c);
+    let (max, min) = (r.max(g).max(b), r.min(g).min(b));
+    let l = (max + min) / 2.0;
+    if max == min { return (0.0, 0.0, l); }
+    let d = max - min;
+    let s = if l > 0.5 { d / (2.0 - max - min) } else { d / (max + min) };
+    let h = if max == r { (g - b) / d + if g < b { 6.0 } else { 0.0 } } else if max == g { (b - r) / d + 2.0 } else { (r - g) / d + 4.0 };
+    (h / 6.0, s, l)
+}
+fn from_hsl(h: f64, s: f64, l: f64) -> u32 {
+    if s == 0.0 { return pack([l, l, l]); }
+    let q = if l < 0.5 { l * (1.0 + s) } else { l + s - l * s };
+    let p = 2.0 * l - q;
+    let f = |mut t: f64| {
+        if t < 0.0 { t += 1.0 } if t > 1.0 { t -= 1.0 }
+        if t < 1.0 / 6.0 { p + (q - p) * 6.0 * t } else if t < 0.5 { q } else if t < 2.0 / 3.0 { p + (q - p) * (2.0 / 3.0 - t) * 6.0 } else { p }
+    };
+    pack([f(h + 1.0 / 3.0), f(h), f(h - 1.0 / 3.0)])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_tinted_card_is_readable() {
+        for s in SCHEMES {
+            for (raw, dark) in [(&s.light, false), (&s.dark, true)] {
+                for &t in &raw.tones {
+                    let (card, ink) = person_card(t, raw.base[0], dark);
+                    assert!(contrast(ink, card) >= 4.5, "{} {dark} {t:06X}: secondary line", s.name);
+                    assert!(contrast(raw.base[1], card) >= 7.0, "{} {dark} {t:06X}: name", s.name);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn android_person_cards_match() {
+        let kt = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../app/src/main/java/app/memi/ui/theme/PersonCards.kt"))
+            .unwrap().to_uppercase();
+        for s in SCHEMES {
+            for (raw, dark) in [(&s.light, false), (&s.dark, true)] {
+                let v: Vec<String> = raw.tones.iter().map(|&t| { let (c, i) = person_card(t, raw.base[0], dark); format!("0XFF{c:06X}, 0XFF{i:06X}") }).collect();
+                let line = format!("\"{} {}\" TO LISTOF({}),", s.name, if dark { "dark" } else { "light" }, v.join(", ")).to_uppercase();
+                assert!(kt.contains(&line), "PersonCards.kt is out of date for {} (dark: {dark}); expected {line}", s.name);
+            }
+        }
+    }
+}

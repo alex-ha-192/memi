@@ -80,10 +80,15 @@ p { line-height: 1.5; }
 .photo { object-fit: cover; flex: none; display: block; }
 .photo.placeholder { display: grid; place-items: center; color: rgba(255,255,255,.75); }
 
-.person-row { display: flex; align-items: center; gap: 12px; padding: 8px; margin-bottom: 4px; border-radius: 18px; cursor: pointer; border: 1px solid transparent; }
-.person-row:hover, .person-row.selected { background: var(--card); }
-.person-row.selected { border-color: var(--line); }
-.person-row .pin, .name .pin { display: inline-block; vertical-align: middle; margin-left: 6px; color: var(--muted); }
+/* Look A4: each person's card is tinted in their tone. */
+.person-row { display: flex; align-items: center; gap: 12px; padding: 9px 10px; margin-bottom: 8px; border-radius: 20px; cursor: pointer; border: 2px solid transparent; background: var(--pc, var(--card)); }
+.person-row:hover { border-color: var(--line); }
+.person-row.selected { border-color: var(--ink); }
+.person-row .item { font-weight: 700; }
+.person-row .sub { color: var(--pi, var(--muted)); }
+.person-row .pin { color: var(--ink); }
+.name .pin, .person-row .pin { display: inline-block; vertical-align: middle; margin-left: 6px; }
+.name .pin { color: var(--muted); }
 .more { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; color: var(--muted); flex: none; opacity: .55; }
 .more:hover { background: var(--hover); opacity: 1; }
 .over { outline: 2px solid var(--ink); outline-offset: -2px; }

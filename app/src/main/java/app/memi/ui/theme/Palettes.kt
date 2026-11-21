@@ -27,6 +27,8 @@ data class BentoColors(
     val strips: List<Color>,
     /** Placeholder tones for people without a photo. */
     val tones: List<Color>,
+    /** Look A4: each tone's card background and secondary-text colour, alternating (see PersonCards.kt). */
+    val personCards: List<Color> = emptyList(),
     val hit: Color,
     val hitInk: Color,
     val miss: Color,
@@ -40,9 +42,20 @@ data class BentoColors(
     val planInk get() = tileInks[1]
     val note get() = tiles[2]
     val noteInk get() = tileInks[2]
+
+    /** The tinted card behind a person, from their tone. */
+    fun personCard(toneIndex: Int): Color = personCards.getOrNull(2 * toneIndex.mod(8)) ?: card
+    /** Their secondary line on that card: 4.5:1 contrast or better. */
+    fun personInk(toneIndex: Int): Color = personCards.getOrNull(2 * toneIndex.mod(8) + 1) ?: muted
 }
 
 data class Scheme(val name: String, val light: BentoColors, val dark: BentoColors)
+
+private fun scheme(name: String, light: BentoColors, dark: BentoColors) = Scheme(
+    name,
+    light.copy(personCards = PERSON_CARDS.getValue("$name light").map(::c)),
+    dark.copy(personCards = PERSON_CARDS.getValue("$name dark").map(::c)),
+)
 
 private fun c(hex: Long) = Color(hex)
 
@@ -91,7 +104,7 @@ private fun dark(
 )
 
 object Schemes {
-    val Bento = Scheme(
+    val Bento = scheme(
         "Bento",
         light(
             0xFFF4F3F8, 0xFF1C1B2E, 0xFF5E5C74,
@@ -109,7 +122,7 @@ object Schemes {
         ),
     )
 
-    val Sorbet = Scheme(
+    val Sorbet = scheme(
         "Sorbet",
         light(
             0xFFFBF4F1, 0xFF2B1D24, 0xFF6E5A62,
@@ -127,7 +140,7 @@ object Schemes {
         ),
     )
 
-    val SeaGlass = Scheme(
+    val SeaGlass = scheme(
         "Sea glass",
         light(
             0xFFEEF5F4, 0xFF122E2C, 0xFF4B6664,
@@ -145,7 +158,7 @@ object Schemes {
         ),
     )
 
-    val Lavender = Scheme(
+    val Lavender = scheme(
         "Lavender",
         light(
             0xFFF4F2FA, 0xFF221B3A, 0xFF5F5878,
@@ -163,7 +176,7 @@ object Schemes {
         ),
     )
 
-    val Clay = Scheme(
+    val Clay = scheme(
         "Clay",
         light(
             0xFFF5F1EC, 0xFF2A211C, 0xFF6A5D54,

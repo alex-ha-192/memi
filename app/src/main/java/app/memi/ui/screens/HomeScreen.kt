@@ -29,6 +29,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -201,25 +202,13 @@ fun HomeScreen(
             item(key = "everyoneHeader") {
                 SectionHeader("Everyone", Modifier.padding(start = hPad, end = hPad, top = 20.dp, bottom = 12.dp).animateItem(), count = model.people.size)
             }
-            if (!asListPane) {
-                item(key = "everyoneRow") {
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = hPad),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.animateItem(),
-                    ) {
-                        items(model.people, key = { it.id }) { p ->
-                            PersonCard(p, model.people, peopleActions, peopleOrder, Modifier.animateItem()) { onOpenPerson(p.id) }
-                        }
-                    }
-                }
-            } else {
+            run {
                 items(model.people, key = { "row-${it.id}" }) { p ->
                     PersonRow(
                         p,
                         Insights.openCount(p, model.notes),
                         selected = p.id == selectedPersonId,
-                        modifier = Modifier.animateItem(),
+                        modifier = Modifier.padding(horizontal = hPad).padding(bottom = 8.dp).animateItem(),
                         menu = Pair(model.people, peopleActions),
                         reorder = peopleOrder,
                     ) { onOpenPerson(p.id) }
@@ -322,7 +311,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.searchResults(
     if (people.isNotEmpty()) {
         item(key = "sp") { SectionHeader("People", Modifier.padding(start = hPad, end = hPad, top = 24.dp, bottom = 8.dp)) }
         items(people, key = { "sp-${it.id}" }) { p ->
-            PersonRow(p, Insights.openCount(p, model.notes), selected = false, modifier = Modifier.padding(horizontal = hPad)) { onOpenPerson(p.id) }
+            PersonRow(p, Insights.openCount(p, model.notes), selected = false, modifier = Modifier.padding(horizontal = hPad).padding(bottom = 8.dp)) { onOpenPerson(p.id) }
         }
     }
     if (notes.isNotEmpty()) {
@@ -493,28 +482,6 @@ fun Mascot(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun PersonCard(p: Person, all: List<Person>, actions: PeopleActions, order: ReorderState<Long>, modifier: Modifier, onClick: () -> Unit) {
-    val colors = Bento.colors
-    val interaction = remember { MutableInteractionSource() }
-    var menu by remember { mutableStateOf(false) }
-    Box(modifier) {
-        Column(
-            Modifier.width(82.dp).reorderable(order, p.id, RoundedCornerShape(22.dp))
-                .pressScale(interaction, 0.95f).pressable(onClick, { menu = true }, interaction, order.handle(p.id)),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Box {
-                PersonPhoto(p, Modifier.width(82.dp).height(92.dp), RoundedCornerShape(22.dp))
-                if (p.pinned) PinBadge(Modifier.align(Alignment.TopEnd).padding(6.dp))
-            }
-            Spacer(Modifier.height(6.dp))
-            OneLine(p.firstName, BentoType.label.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold), colors.ink)
-        }
-        PersonMenu(menu, { menu = false }, p, all, actions)
-    }
-}
-
-@Composable
 fun PersonRow(
     p: Person,
     open: Int,
@@ -527,24 +494,33 @@ fun PersonRow(
 ) {
     val colors = Bento.colors
     var menuOpen by remember { mutableStateOf(false) }
+    // Look A4: the card is tinted in the person's tone, with their relationship and open count beneath the name.
+    val subtitle = listOfNotNull(p.relationship.takeIf { it.isNotBlank() }, if (open > 0) "$open open" else null).joinToString(" · ")
     Box(modifier) {
-        val shape = RoundedCornerShape(16.dp)
+        val shape = RoundedCornerShape(22.dp)
         Tile(
-            Modifier.fillMaxWidth().padding(bottom = 2.dp)
+            Modifier.fillMaxWidth()
+                .then(if (selected) Modifier.border(2.dp, colors.ink, shape) else Modifier)
                 .then(if (reorder != null) Modifier.reorderable(reorder, p.id, shape) else Modifier),
-            color = if (selected) colors.card else if (reorder?.dragging == p.id) colors.sheet else Color.Transparent,
+            color = colors.personCard(p.toneIndex),
             shape = shape,
             onClick = onClick,
             onMenu = if (menu != null) ({ menuOpen = true }) else null,
-            contentPadding = 6.dp,
+            contentPadding = 12.dp,
             reorder = reorder?.handle(p.id),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 4.dp)) {
-                PersonPhoto(p, Modifier.size(44.dp), RoundedCornerShape(14.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 2.dp)) {
+                PersonPhoto(p, Modifier.size(46.dp), RoundedCornerShape(13.dp))
                 Spacer(Modifier.width(12.dp))
-                OneLine(p.name, BentoType.itemTitle, colors.ink, Modifier.weight(1f))
-                if (p.pinned) PinBadge(Modifier.padding(end = 8.dp))
-                if (open > 0) Text("$open open", style = BentoType.caption, color = colors.muted)
+                Column(Modifier.weight(1f)) {
+                    OneLine(p.name, BentoType.itemTitle.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold), colors.ink)
+                    if (subtitle.isNotEmpty()) OneLine(subtitle, BentoType.caption, colors.personInk(p.toneIndex))
+                }
+                if (p.pinned) PinBadge(Modifier.padding(start = 8.dp))
+                Icon(
+                    Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = colors.muted,
+                    modifier = Modifier.padding(start = 4.dp).size(20.dp),
+                )
             }
         }
         if (menu != null) PersonMenu(menuOpen, { menuOpen = false }, p, menu.first, menu.second)

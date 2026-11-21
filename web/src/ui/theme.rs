@@ -30,6 +30,12 @@ pub fn css_vars(name: &str, dark: bool) -> String {
         v.push((format!("strip{i}"), hex(r.strips[i])));
     }
     for (i, t) in r.tones.iter().enumerate() { v.push((format!("tone{i}"), hex(*t))); }
+    // Look A4: each tone's tinted person card and the secondary text on it.
+    for (i, t) in r.tones.iter().enumerate() {
+        let (card, ink) = memi_core::palette::person_card(*t, r.base[0], dark);
+        v.push((format!("pcard{i}"), hex(card)));
+        v.push((format!("pink{i}"), hex(ink)));
+    }
     v.push(("scheme".into(), if dark { "dark".into() } else { "light".into() }));
     v.iter().map(|(k, val)| if k == "scheme" { format!("color-scheme:{val};") } else { format!("--{k}:{val};") }).collect()
 }

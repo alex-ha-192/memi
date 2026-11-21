@@ -226,8 +226,13 @@ pub fn person_row(p: Person, open: usize, drag: bool) -> impl IntoView {
     let (u1, u2, u3, u4, u5) = (p.uid.clone(), p.uid.clone(), p.uid.clone(), p.uid.clone(), p.uid.clone());
     let selected = move || a.selected.get().as_deref() == Some(u1.as_str()) && a.width.get() >= super::TWO_PANE_MIN;
     let over = move || a.drag.with(|d| d.as_ref().and_then(|(_, o)| o.clone()).as_deref() == Some(u2.as_str()));
+    // Look A4: tinted in their tone, relationship and open count on the second line.
+    let t = p.tone_index.rem_euclid(8);
+    let tint = format!("--pc:var(--pcard{t});--pi:var(--pink{t})");
+    let subtitle = [Some(p.relationship.clone()).filter(|r| !r.is_empty()), (open > 0).then(|| format!("{open} open"))]
+        .into_iter().flatten().collect::<Vec<_>>().join(" · ");
     view! {
-        <div class="person-row" class:selected=selected class:over=over draggable=if drag { "true" } else { "false" }
+        <div class="person-row" style=tint class:selected=selected class:over=over draggable=if drag { "true" } else { "false" }
             on:click=move |_| a.open_person(u3.clone())
             on:contextmenu=move |e| open_menu(&e, MenuKind::Person(u4.clone()))
             on:dragstart=move |e| { if drag { set_drag(&e, &u5); } }
@@ -235,12 +240,11 @@ pub fn person_row(p: Person, open: usize, drag: bool) -> impl IntoView {
             on:dragleave=move |_| a.drag.update(|d| if let Some((_, o)) = d { *o = None })
             on:drop={let u = p.uid.clone(); move |e| { e.prevent_default(); if let Some(from) = take_drag() { if from != u { a.change(|d| d.place_person(&from, &u)); } } }}
             on:dragend=move |_| a.drag.set(None)>
-            <Photo person=p.clone() size=44. radius=15. />
+            <Photo person=p.clone() size=46. radius=14. />
             <div class="grow min0 col">
                 <span class="item ellipsis">{p.name.clone()}{p.pinned.then(|| view! { <span class="pin"><Icon name="pin" size=13. /></span> })}</span>
-                {(!p.relationship.is_empty()).then(|| view! { <span class="caption muted ellipsis">{p.relationship.clone()}</span> })}
+                {(!subtitle.is_empty()).then(|| view! { <span class="caption sub ellipsis">{subtitle}</span> })}
             </div>
-            {(open > 0).then(|| tag(open.to_string(), "track"))}
             <button class="more" title="More" on:click={let u = p.uid.clone(); move |e| open_menu(&e, MenuKind::Person(u.clone()))}><Icon name="more" size=18. /></button>
         </div>
     }

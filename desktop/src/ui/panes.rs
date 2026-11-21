@@ -275,9 +275,14 @@ impl MemiView {
         let open = insights::open_count(p.id, &self.notes);
         let (id, p2) = (p.id, p.clone());
         let (drag_bg, drag_fg, accent) = (c.ink, c.bg, c.ink);
-        div().id(("person", p.id as usize)).flex_none().flex().items_center().gap(px(12.)).p(px(8.)).mb(px(4.)).rounded(px(18.)).cursor_pointer()
-            .when(selected, |d| d.bg(c.card).border_1().border_color(c.line))
-            .when(!selected, |d| d.border_1().border_color(transparent_black()).hover(|s| s.bg(c.card)))
+        // Look A4: tinted in the person's tone; relationship and open count share the second line.
+        let (tint, tint_ink) = (c.person_card(p.tone_index), c.person_ink(p.tone_index));
+        let subtitle = [Some(p.relationship.clone()).filter(|r| !r.is_empty()), (open > 0).then(|| format!("{open} open"))]
+            .into_iter().flatten().collect::<Vec<_>>().join(" · ");
+        div().id(("person", p.id as usize)).flex_none().flex().items_center().gap(px(12.)).px(px(10.)).py(px(9.)).mb(px(8.)).rounded(px(20.)).cursor_pointer()
+            .bg(tint).border_2()
+            .when(selected, |d| d.border_color(c.ink))
+            .when(!selected, |d| d.border_color(transparent_black()).hover(|s| s.border_color(c.line)))
             // Drag onto another person to put them in that place.
             .on_drag(DragPerson { id, label: p.name.clone().into() }, move |d, _, _, cx| drag::preview(d.label.clone(), drag_bg, drag_fg, cx))
             .drag_over::<DragPerson>(move |s, d, _, _| if d.id == id { s } else { s.border_color(accent) })
@@ -289,13 +294,12 @@ impl MemiView {
                 this.menu = Some(Menu { at: e.position, kind: MenuKind::Person(p2.clone()) });
                 cx.notify();
             }))
-            .child(photo(p, 44., 44., 15., c))
+            .child(photo(p, 46., 46., 14., c))
             .child(div().flex_1().min_w_0().flex().flex_col()
                 .child(div().flex().items_center().gap(px(6.))
-                    .child(item(p.name.clone(), c.ink).truncate())
-                    .when(p.pinned, |d| d.child(icon("pin", 13., c.muted))))
-                .when(!p.relationship.is_empty(), |d| d.child(caption(p.relationship.clone(), c.muted).truncate())))
-            .when(open > 0, |d| d.child(tag(format!("{open}"), c.track, c.muted)))
+                    .child(item(p.name.clone(), c.ink).font_weight(FontWeight::BOLD).truncate())
+                    .when(p.pinned, |d| d.child(icon("pin", 13., c.ink))))
+                .when(!subtitle.is_empty(), |d| d.child(caption(subtitle, tint_ink).truncate())))
     }
 
     fn search_results(&self, c: &Colors, cx: &mut Context<Self>) -> impl IntoElement {
