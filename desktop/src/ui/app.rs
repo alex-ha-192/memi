@@ -140,6 +140,8 @@ pub struct SyncUi {
     pub typing_key: Option<Entity<InputState>>,
     pub key_shown: Option<String>,
     pub message: Option<String>,
+    /// Setting up WebDAV: the folder address, user name and password fields.
+    pub webdav: Option<[Entity<InputState>; 3]>,
 }
 
 pub struct MemiView {
@@ -651,11 +653,48 @@ impl MemiView {
                     Err(e) => this.sync_ui.problem = Some(Problem::Failed(e.to_string())),
                 }
                 this.sync_ui.settings = this.sync.snapshot();
+                // Connected: the WebDAV form has done its job.
+                if this.sync_ui.settings.enabled && this.sync_ui.problem.is_none() { this.sync_ui.webdav = None; }
                 this.sync_ui.joins = this.sync.joins();
                 if let Some(a) = this.sync.asking() { this.show_asking(a, cx); }
                 this.reload();
                 cx.notify();
             });
+        }).detach();
+    }
+
+    /// Opens the WebDAV form, filled in with what's saved (when the password needs entering again).
+    pub fn open_webdav_form(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let (url, user) = match self.sync.snapshot().provider {
+            memi_engine::Provider::WebDav { url, user } => (url, user),
+            _ => (String::new(), String::new()),
+        };
+        let field = |placeholder: &'static str, value: String, masked: bool, window: &mut Window, cx: &mut Context<Self>| {
+            cx.new(|cx| {
+                let mut s = InputState::new(window, cx).placeholder(placeholder).masked(masked);
+                s.set_value(value, window, cx);
+                s
+            })
+        };
+        let fields = [
+            field("https://cloud.example.com/remote.php/dav/files/you/Memi", url, false, window, cx),
+            field("User name", user, false, window, cx),
+            field("Password or app password", String::new(), true, window, cx),
+        ];
+        let first_empty = fields.iter().position(|f| f.read(cx).value().is_empty()).unwrap_or(2);
+        fields[first_empty].update(cx, |s, cx| s.focus(window, cx));
+        self.sync_ui.webdav = Some(fields);
+        self.sync_ui.problem = None;
+        cx.notify();
+    }
+
+    /// Syncs through a folder the person picks.
+    pub fn pick_sync_folder(&mut self, cx: &mut Context<Self>) {
+        let dialog = rfd::AsyncFileDialog::new().set_title("Choose a folder to sync through");
+        cx.spawn(async move |this, cx| {
+            let Some(f) = dialog.pick_folder().await else { return };
+            let path = f.path().to_path_buf();
+            let _ = this.update(cx, |this, cx| this.run_sync(cx, move |e| e.connect_folder(&path)));
         }).detach();
     }
 

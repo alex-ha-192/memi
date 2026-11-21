@@ -8,12 +8,19 @@ pub mod secrets;
 
 use crate::platform::DesktopPlatform;
 use anyhow::Result;
+use memi_engine::any_drive::AnyDrive;
+use memi_engine::folder_drive::FolderDrive;
 use memi_engine::native_drive::{block_on, NativeDrive};
+use memi_engine::webdav::WebDavDrive;
+use memi_engine::Provider;
 use memi_engine::sync::{self as engine, Handle};
 use memi_engine::Memi;
 use std::sync::{Arc, Mutex};
 
 pub use memi_engine::{Asking, Join, Problem, SyncSettings as Settings};
+
+/// The secret-store entry for the WebDAV password.
+const WEBDAV_PASSWORD: &str = "webdav-password";
 
 pub type Shared = Arc<Mutex<Memi<DesktopPlatform>>>;
 
@@ -38,16 +45,24 @@ impl Engine {
 
     fn problem(&self) -> Option<Problem> { self.memi.with(|m| m.status.problem.clone()) }
 
-    /// A Drive with a fresh token, or None if you need to sign in again.
-    fn drive(&self) -> Result<Option<NativeDrive>> {
-        Ok(self.auth.silent_token(&self.secrets)?.map(|t| NativeDrive::new(&t)))
+    /// Where sync goes, connected: Google with a fresh token, WebDAV with the saved password, or
+    /// the folder. None if you need to sign in again.
+    fn drive(&self) -> Result<Option<AnyDrive>> {
+        Ok(match self.snapshot().provider {
+            Provider::Google => self.auth.silent_token(&self.secrets)?.map(|t| AnyDrive::Google(NativeDrive::new(&t))),
+            Provider::WebDav { url, user } => match self.secrets.get(WEBDAV_PASSWORD) {
+                Some(pass) => Some(AnyDrive::WebDav(WebDavDrive::new(&url, &user, &pass)?)),
+                None => None,
+            },
+            Provider::Folder { path } => Some(AnyDrive::Folder(FolderDrive::new(path))),
+        })
     }
 
-    /// Runs `step` with a fresh token; if Google turns the token down, gets another and tries once more.
-    fn with_drive(&self, step: impl Fn(&NativeDrive)) -> Result<Option<Problem>> {
+    /// Runs `step`; if Google turns the token down, gets another and tries once more.
+    fn with_drive(&self, step: impl Fn(&AnyDrive)) -> Result<Option<Problem>> {
         let Some(drive) = self.drive()? else { return Ok(Some(Problem::NeedsSignIn)) };
         step(&drive);
-        if self.problem() == Some(Problem::NeedsSignIn) {
+        if self.problem() == Some(Problem::NeedsSignIn) && matches!(drive, AnyDrive::Google(_)) {
             if let Some(t) = self.auth.silent_token(&self.secrets).ok().flatten() { self.auth.forget(&t); }
             let Some(drive) = self.drive()? else { return Ok(Some(Problem::NeedsSignIn)) };
             self.memi.with(|m| m.set_status(|s| s.problem = None));
@@ -56,20 +71,52 @@ impl Engine {
         Ok(self.problem())
     }
 
+    /// "your Google account", "your WebDAV folder", "the folder": for messages.
+    fn place(&self) -> &'static str {
+        match self.snapshot().provider { Provider::Google => "your Google account", Provider::WebDav { .. } => "your WebDAV folder", Provider::Folder { .. } => "the folder" }
+    }
+
     // --- Turning it on ---------------------------------------------------------------------------
 
     /// Opens the browser to sign in, then connects. If this computer has no key yet, it starts
     /// asking your other devices for it (see [Engine::asking]).
     pub fn sign_in_and_connect(&self) -> Result<Option<Problem>> {
         let token = self.auth.sign_in(&self.secrets)?;
-        block_on(engine::connect(&self.memi, &NativeDrive::new(&token)));
+        self.memi.with(|m| m.update_sync(|s| s.provider = Provider::Google));
+        block_on(engine::connect(&self.memi, &AnyDrive::Google(NativeDrive::new(&token))));
+        Ok(self.problem())
+    }
+
+    /// Connects to a WebDAV folder. Checks the address and password first, so a mistake is
+    /// reported here rather than turning sync on with nothing behind it.
+    pub fn connect_webdav(&self, url: &str, user: &str, password: &str) -> Result<Option<Problem>> {
+        let url = memi_engine::webdav::normalise_url(url)?;
+        anyhow::ensure!(!user.trim().is_empty(), "Enter your user name");
+        let drive = WebDavDrive::new(&url, user.trim(), password)?;
+        match block_on(memi_engine::sync::Drive::find(&drive, memi_engine::sync::FILE)) {
+            Err(e) if e.is::<memi_engine::sync::Unauthorized>() => anyhow::bail!("The server turned down that user name and password. On Nextcloud, use an app password (Settings › Security)."),
+            Err(e) => return Err(e),
+            Ok(_) => {}
+        }
+        self.secrets.set(WEBDAV_PASSWORD, password);
+        self.memi.with(|m| m.update_sync(|s| s.provider = Provider::WebDav { url: url.clone(), user: user.trim().to_string() }));
+        block_on(engine::connect(&self.memi, &AnyDrive::WebDav(drive)));
+        Ok(self.problem())
+    }
+
+    /// Syncs through a folder that something else keeps the same on each device.
+    pub fn connect_folder(&self, path: &std::path::Path) -> Result<Option<Problem>> {
+        anyhow::ensure!(path.is_dir(), "That folder isn't there");
+        let path = path.to_string_lossy().into_owned();
+        self.memi.with(|m| m.update_sync(|s| s.provider = Provider::Folder { path: path.clone() }));
+        block_on(engine::connect(&self.memi, &AnyDrive::Folder(FolderDrive::new(path))));
         Ok(self.problem())
     }
 
     pub fn use_recovery_key(&self, text: &str) -> Result<Option<Problem>> {
         let Some(drive) = self.drive()? else { return Ok(Some(Problem::NeedsSignIn)) };
         if !block_on(engine::use_recovery_key(&self.memi, &drive, text)) && self.problem().is_none() {
-            anyhow::bail!("That key doesn't open the backup in your Google account.");
+            anyhow::bail!("That key doesn't open the backup in {}.", self.place());
         }
         Ok(self.problem())
     }
@@ -100,7 +147,7 @@ impl Engine {
     pub fn decline_join(&self, file_id: &str) -> Result<()> { self.answer(file_id, false) }
 
     fn answer(&self, file_id: &str, allow: bool) -> Result<()> {
-        let drive = self.drive()?.ok_or_else(|| anyhow::anyhow!("Sign in to Google again first."))?;
+        let drive = self.drive()?.ok_or_else(|| anyhow::anyhow!("Sign in to {} again first.", self.place()))?;
         block_on(engine::answer_join(&self.memi, &drive, file_id, allow))
     }
 
@@ -113,6 +160,7 @@ impl Engine {
     pub fn turn_off(&self) {
         self.cancel_asking();
         self.auth.sign_out(&self.secrets);
+        self.secrets.delete(WEBDAV_PASSWORD);
         // The key stays, so turning sync back on doesn't need another device.
         self.memi.with(|m| m.turn_off_sync(false));
     }

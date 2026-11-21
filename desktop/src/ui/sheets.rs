@@ -10,6 +10,7 @@ use crate::model::*;
 use crate::sync::Problem;
 use crate::{dates, photos};
 use memi_core::dates::Date;
+use gpui_component::input::InputState;
 use gpui::prelude::*;
 use gpui::*;
 use gpui_component::input::Input;
@@ -364,7 +365,7 @@ impl MemiView {
                         .child(body("Open Memi there. It will ask whether to let this computer join; allow it if it shows:", c.muted))
                         .child(display(confirm, c).text_size(px(30.))));
                 }
-                col = col.child(body("Or, on your phone: Theme → Sync → Add a computer, then scan this.", c.ink));
+                col = col.child(body("Or, on your phone: Settings → Sync → Add a computer, then scan this.", c.ink));
                 if let Some(code) = self.sync_ui.pairing_code.clone() {
                     col = col.child(div().flex().flex_col().items_center().gap(px(8.))
                         .child(qr(&code))
@@ -404,20 +405,54 @@ impl MemiView {
                     .on_click(cx.listener(|this, _, _, cx| {
                         this.overlay = Some(Overlay::Confirm {
                             title: "Start sync over?".into(),
-                            body: "Without its recovery key, nobody can open the copy in your Google account, so Memi will delete it and make a new one from what's on this computer. You'll get a new recovery key. Your other devices will ask for it before they sync again, and anything that's only on them stays there until you set them up.".into(),
+                            body: "Without its recovery key, nobody can open the synced copy, so Memi will delete it and make a new one from what's on this computer. You'll get a new recovery key. Your other devices will ask for it before they sync again, and anything that's only on them stays there until you set them up.".into(),
                             confirm: "Start over".into(),
                             action: ConfirmAction::StartSyncOver,
                         });
                         cx.notify();
                     })));
             }
-            _ if !s.enabled => {
-                col = col
-                    .child(body("Keep a copy of everything in your own Google account, so your phone and this computer stay in step.", c.ink))
-                    .child(body("It's encrypted on this computer before it leaves, so Google can't read it, and it sits in a hidden folder only Memi can open, away from your Drive files. Nobody else, including us, ever gets a copy.", c.ink))
-                    .child(primary_button("connect", if busy { "Waiting for your browser…" } else { "Choose a Google account" }, !busy, c)
-                        .on_click(cx.listener(|this, _, _, cx| this.run_sync(cx, |e| e.sign_in_and_connect()))))
-                    .when(busy, |d| d.child(caption("Finish signing in in your browser, then come back here.", c.muted)));
+            _ if !s.enabled || self.sync_ui.webdav.is_some() => {
+                if let Some(Problem::Failed(m)) = &problem {
+                    col = col.child(body(m.clone(), c.danger));
+                }
+                if let Some([url, user, pass]) = self.sync_ui.webdav.clone() {
+                    let ready = [&url, &user, &pass].iter().all(|f| !f.read(cx).value().trim().is_empty());
+                    let field = |title: &'static str, input: &Entity<InputState>| div().flex().flex_col().gap(px(6.))
+                        .child(label(title, c.ink)).child(Input::new(input).h(px(44.)));
+                    col = col
+                        .child(body("Memi keeps its encrypted files in one folder on your WebDAV server. On Nextcloud, the address is under Files › Settings › WebDAV, with a folder name added (it's made if it isn't there), and an app password comes from Settings › Security.", c.ink))
+                        .child(field("Folder address", &url))
+                        .child(field("User name", &user))
+                        .child(field("Password", &pass))
+                        .child(div().flex().gap(px(8.))
+                            .child(secondary_button("webdav-back", "Back", false, c).flex_1().on_click(cx.listener(|this, _, _, cx| {
+                                this.sync_ui.webdav = None;
+                                this.sync_ui.problem = None;
+                                cx.notify();
+                            })))
+                            .child(primary_button("webdav-connect", if busy { "Connecting…" } else { "Connect" }, ready && !busy, c).flex_1()
+                                .on_click(cx.listener(move |this, _, _, cx| {
+                                    let (u, n, p) = (url.read(cx).value().to_string(), user.read(cx).value().to_string(), pass.read(cx).value().to_string());
+                                    this.run_sync(cx, move |e| e.connect_webdav(&u, &n, &p));
+                                }))));
+                } else {
+                    let choice = |id: &'static str, icon_name: &'static str, title: &'static str, detail: &'static str| {
+                        div().id(id).flex().items_center().gap(px(14.)).p(px(16.)).rounded(px(18.)).bg(c.card).border_1().border_color(c.line)
+                            .cursor_pointer().hover(|s| s.border_color(c.ink))
+                            .child(icon(icon_name, 22., c.ink))
+                            .child(div().flex_1().min_w_0().flex().flex_col().gap(px(2.)).child(card_title(title, c.ink)).child(caption(detail, c.muted)))
+                            .child(icon("chevron-right", 17., c.muted))
+                    };
+                    col = col
+                        .child(body("Keep a copy of everything somewhere you choose, so your phone and this computer stay in step. It's encrypted on this computer before it leaves, so wherever it's kept can't read it, and nobody else, including us, ever gets a copy.", c.ink))
+                        .child(choice("via-google", "cloud", "Google Drive", if busy { "Finish signing in in your browser, then come back here." } else { "A hidden folder in your Google account, away from your Drive files" })
+                            .on_click(cx.listener(|this, _, _, cx| this.run_sync(cx, |e| e.sign_in_and_connect()))))
+                        .child(choice("via-webdav", "server", "WebDAV", "Nextcloud, ownCloud, a NAS or another WebDAV server")
+                            .on_click(cx.listener(|this, _, window, cx| this.open_webdav_form(window, cx))))
+                        .child(choice("via-folder", "folder", "A folder", "One that Syncthing, Dropbox, OneDrive or a network share keeps the same on each device")
+                            .on_click(cx.listener(|this, _, _, cx| this.pick_sync_folder(cx))));
+                }
             }
             _ => {
                 let detail = if busy { "Syncing…".to_string() } else {
@@ -427,8 +462,13 @@ impl MemiView {
                     .child(card_title(s.account.clone().map(|a| format!("Syncing with {a}")).unwrap_or_else(|| "Sync is on".into()), c.ink))
                     .child(label(detail, c.muted)));
                 if let Some(Problem::NeedsSignIn) = problem {
-                    col = col.child(body("Google needs you to sign in again before Memi can sync.", c.ink))
-                        .child(primary_button("again", "Sign in again", !busy, c).on_click(cx.listener(|this, _, _, cx| this.run_sync(cx, |e| e.sign_in_and_connect()))));
+                    if matches!(s.provider, memi_engine::Provider::WebDav { .. }) {
+                        col = col.child(body("Your WebDAV server turned down the saved password. Enter it again to keep syncing.", c.ink))
+                            .child(primary_button("again", "Enter the password", !busy, c).on_click(cx.listener(|this, _, window, cx| this.open_webdav_form(window, cx))));
+                    } else {
+                        col = col.child(body("Google needs you to sign in again before Memi can sync.", c.ink))
+                            .child(primary_button("again", "Sign in again", !busy, c).on_click(cx.listener(|this, _, _, cx| this.run_sync(cx, |e| e.sign_in_and_connect()))));
+                    }
                 }
                 if let Some(Problem::Failed(m)) = &problem {
                     col = col.child(body(format!("The last sync didn't work ({m}). Memi will try again by itself."), c.ink));

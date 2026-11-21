@@ -4091,6 +4091,8 @@ name = "memi-engine"
 version = "0.6.3"
 dependencies = [
  "anyhow",
+ "base64 0.22.1",
+ "jiff",
  "memi-core",
  "rusqlite",
  "serde",
