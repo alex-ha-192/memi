@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Privacy or data protection question
+    url: mailto:hello@yourmemi.app
+    about: Questions or complaints about how Memi handles personal data. We reply within 30 days.
