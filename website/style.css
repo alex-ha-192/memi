@@ -132,6 +132,16 @@ p.sub { color: var(--muted); margin: 0 0 26px; max-width: 38em; }
 .doc table { width: 100%; border-collapse: collapse; font-size: 15px; margin: 10px 0; }
 .doc th, .doc td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
 .doc th { font-weight: 700; }
+/* Long addresses (hello@yourmemi.app, memi.yourmemi.app) may break anywhere rather than widen the page. */
+.doc p, .doc li, .doc td, .doc code { overflow-wrap: anywhere; }
+/* On a phone, a table of three or more columns becomes one small card per row, each cell labelled. */
+@media (max-width: 560px) {
+  .doc table.stack, .doc table.stack tbody, .doc table.stack tr, .doc table.stack td { display: block; width: auto; }
+  .doc table.stack tr:first-child { display: none; }
+  .doc table.stack tr { border-bottom: 1px solid var(--line); padding: 8px 0; }
+  .doc table.stack td { border-bottom: 0; padding: 4px 0; }
+  .doc table.stack td::before { content: attr(data-label); display: block; font-size: 13px; font-weight: 700; color: var(--muted); }
+}
 
 /* Footer */
 footer.site { padding: 34px 0 48px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); margin-top: 30px; }
