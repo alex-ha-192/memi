@@ -46,7 +46,7 @@ impl MemiView {
     fn sheet_title(&self, text: impl Into<SharedString>, c: &Colors, cx: &mut Context<Self>) -> impl IntoElement {
         div().flex().items_start().gap(px(12.))
             .child(tile_title(text, c.ink).flex_1().min_w_0())
-            .child(div().id("close").size(px(34.)).flex_none().rounded(px(12.)).flex().items_center().justify_center().cursor_pointer()
+            .child(div().id("close").role(Role::Button).aria_label("Close").size(px(34.)).flex_none().rounded(px(12.)).flex().items_center().justify_center().cursor_pointer()
                 .hover(|s| s.bg(c.track))
                 .child(icon("x", 18., c.muted))
                 .on_click(cx.listener(|this, _, _, cx| {
@@ -438,7 +438,7 @@ impl MemiView {
                                 }))));
                 } else {
                     let choice = |id: &'static str, icon_name: &'static str, title: &'static str, detail: &'static str| {
-                        div().id(id).flex().items_center().gap(px(14.)).p(px(16.)).rounded(px(18.)).bg(c.card).border_1().border_color(c.line)
+                        div().id(id).role(Role::Button).aria_label(title).aria_description(detail).flex().items_center().gap(px(14.)).p(px(16.)).rounded(px(18.)).bg(c.card).border_1().border_color(c.line)
                             .cursor_pointer().hover(|s| s.border_color(c.ink))
                             .child(icon(icon_name, 22., c.ink))
                             .child(div().flex_1().min_w_0().flex().flex_col().gap(px(2.)).child(card_title(title, c.ink)).child(caption(detail, c.muted)))

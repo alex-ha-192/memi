@@ -28,8 +28,9 @@ pub fn tag(text: impl Into<SharedString>, bg: Hsla, fg: Hsla) -> Div {
 }
 
 /// The square header buttons (themes, search, add).
-pub fn header_button(id: &'static str, icon_name: &str, selected: bool, c: &Colors) -> Stateful<Div> {
-    div().id(id).size(px(44.)).flex_none().rounded(px(15.)).flex().items_center().justify_center()
+/// A round icon button. `label` is what screen readers call it ("Search").
+pub fn header_button(id: &'static str, icon_name: &str, label: &'static str, selected: bool, c: &Colors) -> Stateful<Div> {
+    div().id(id).role(Role::Button).aria_label(label).size(px(44.)).flex_none().rounded(px(15.)).flex().items_center().justify_center()
         .bg(if selected { c.ink } else { c.card })
         .cursor_pointer()
         .hover(|s| s.opacity(0.85))
@@ -37,14 +38,14 @@ pub fn header_button(id: &'static str, icon_name: &str, selected: bool, c: &Colo
 }
 
 pub fn primary_button(id: impl Into<ElementId>, text: &str, enabled: bool, c: &Colors) -> Stateful<Div> {
-    div().id(id).h(px(48.)).px(px(20.)).rounded(px(16.)).flex().items_center().justify_center()
+    div().id(id).role(Role::Button).aria_label(text.to_string()).h(px(48.)).px(px(20.)).rounded(px(16.)).flex().items_center().justify_center()
         .bg(if enabled { c.ink } else { c.track })
         .when(enabled, |d| d.cursor_pointer().hover(|s| s.opacity(0.9)))
         .child(card_title(text.to_string(), if enabled { c.bg } else { c.muted }))
 }
 
 pub fn secondary_button(id: impl Into<ElementId>, text: &str, danger: bool, c: &Colors) -> Stateful<Div> {
-    div().id(id).h(px(48.)).px(px(20.)).rounded(px(16.)).flex().items_center().justify_center()
+    div().id(id).role(Role::Button).aria_label(text.to_string()).h(px(48.)).px(px(20.)).rounded(px(16.)).flex().items_center().justify_center()
         .bg(c.track).border_1().border_color(c.line)
         .cursor_pointer().hover(|s| s.opacity(0.85))
         .child(card_title(text.to_string(), if danger { c.danger } else { c.ink }))
@@ -52,7 +53,7 @@ pub fn secondary_button(id: impl Into<ElementId>, text: &str, danger: bool, c: &
 
 /// A choice chip; dark when picked.
 pub fn chip(id: impl Into<ElementId>, text: &str, selected: bool, c: &Colors) -> Stateful<Div> {
-    div().id(id).px(px(13.)).py(px(8.)).rounded(px(13.)).cursor_pointer()
+    div().id(id).role(Role::Button).aria_label(text.to_string()).aria_selected(selected).px(px(13.)).py(px(8.)).rounded(px(13.)).cursor_pointer()
         .bg(if selected { c.ink } else { c.track })
         .border_1().border_color(if selected { c.ink } else { c.line })
         .hover(|s| s.opacity(0.85))

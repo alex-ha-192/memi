@@ -79,7 +79,7 @@ impl MemiView {
         } else {
             ("cloud-off", "Not synced", c.card, c.ink)
         };
-        div().id("sync-chip").flex().items_center().gap(px(5.)).pl(px(8.)).pr(px(11.)).py(px(3.)).rounded_full().bg(bg)
+        div().id("sync-chip").role(Role::Button).aria_label(format!("Sync: {label}")).flex().items_center().gap(px(5.)).pl(px(8.)).pr(px(11.)).py(px(3.)).rounded_full().bg(bg)
             .cursor_pointer()
             .child(icon(icon_name, 14., ink))
             .child(t(label.to_string(), 13., FontWeight::BOLD, ink))
@@ -98,13 +98,13 @@ impl MemiView {
                     .child(display("Your people", c).text_size(px(28.)).whitespace_nowrap().text_ellipsis()),
             })
             .when(self.search.is_none(), |d| d
-                .child(header_button("themes", "settings", self.theme_open, c)
+                .child(header_button("themes", "settings", "Settings", self.theme_open, c)
                     .on_click(cx.listener(|this, _, _, cx| { this.theme_open = !this.theme_open; cx.notify(); })))
-                .child(header_button("search", "search", false, c)
+                .child(header_button("search", "search", "Search", false, c)
                     .on_click(cx.listener(|this, _, window, cx| this.open_search(window, cx))))
-                .child(header_button("add", "plus", false, c)
+                .child(header_button("add", "plus", "Add a person", false, c)
                     .on_click(cx.listener(|this, _, window, cx| this.open_person_editor(None, window, cx)))))
-            .when(self.search.is_some(), |d| d.child(header_button("close-search", "x", false, c)
+            .when(self.search.is_some(), |d| d.child(header_button("close-search", "x", "Close search", false, c)
                 .on_click(cx.listener(|this, _, _, cx| { this.search = None; this.query.clear(); cx.notify(); }))));
 
         let mut body = div().id("list").flex_1().min_h_0().overflow_y_scroll().px(px(28.)).pb(px(40.)).flex().flex_col();
@@ -267,7 +267,8 @@ impl MemiView {
         let group = SharedString::from(format!("note-{}", n.id));
         let n1 = n.clone();
         let n2 = n.clone();
-        div().id(id).group(group.clone()).flex_none().rounded(px(18.)).bg(c.card).border_1().border_color(c.line).p(px(12.)).flex().items_center().gap(px(12.)).cursor_pointer()
+        let spoken = match person { Some(p) => format!("{}, {}", n.text, p.name), None => n.text.clone() };
+        div().id(id).group(group.clone()).role(Role::Button).aria_label(spoken).aria_description(subtitle.to_string()).flex_none().rounded(px(18.)).bg(c.card).border_1().border_color(c.line).p(px(12.)).flex().items_center().gap(px(12.)).cursor_pointer()
             .hover(|s| s.border_color(Hsla { a: 0.18, ..c.ink }))
             .on_mouse_down(MouseButton::Right, cx.listener(move |this, e: &MouseDownEvent, _, cx| {
                 this.menu = Some(Menu { at: e.position, kind: MenuKind::Note(n1.clone()) });
@@ -299,7 +300,8 @@ impl MemiView {
         let (tint, tint_ink) = (c.person_card(p.tone_index), c.person_ink(p.tone_index));
         let subtitle = [Some(p.relationship.clone()).filter(|r| !r.is_empty()), (open > 0).then(|| format!("{open} open"))]
             .into_iter().flatten().collect::<Vec<_>>().join(" · ");
-        div().id(("person", p.id as usize)).flex_none().flex().items_center().gap(px(12.)).px(px(10.)).py(px(9.)).mb(px(8.)).rounded(px(20.)).cursor_pointer()
+        let spoken = if subtitle.is_empty() { p.name.clone() } else { format!("{}, {}", p.name, subtitle) };
+        div().id(("person", p.id as usize)).role(Role::Button).aria_label(spoken).aria_selected(selected).flex_none().flex().items_center().gap(px(12.)).px(px(10.)).py(px(9.)).mb(px(8.)).rounded(px(20.)).cursor_pointer()
             .bg(tint).border_2()
             .when(selected, |d| d.border_color(c.ink))
             .when(!selected, |d| d.border_color(transparent_black()).hover(|s| s.border_color(c.line)))
@@ -437,7 +439,7 @@ impl MemiView {
         }
 
         let back = div().flex().items_center().gap(px(10.)).mb(px(18.))
-            .child(header_button("back", "chevron-left", false, c)
+            .child(header_button("back", "chevron-left", "Back to your people", false, c)
                 .on_click(cx.listener(|this, _, _, cx| { this.page_open = false; cx.notify(); })))
             .child(label("Your people", c.muted));
         div().id("detail").flex_1().min_w_0().h_full().overflow_y_scroll()
@@ -466,7 +468,7 @@ impl MemiView {
         let (pid, cid) = (p.id, cat.id);
         let cat2 = cat.clone();
         let (drag_bg, drag_fg, accent) = (c.ink, c.bg, c.ink);
-        div().id(("cat", cat.id as usize)).h(px(132.)).rounded(px(24.)).bg(c.tile(cat.slot)).p(px(16.)).flex().flex_col().justify_between().cursor_pointer()
+        div().id(("cat", cat.id as usize)).role(Role::Button).aria_label(format!("{}, {} open", cat.name, open.len())).h(px(132.)).rounded(px(24.)).bg(c.tile(cat.slot)).p(px(16.)).flex().flex_col().justify_between().cursor_pointer()
             .border_2().border_color(transparent_black())
             .hover(|s| s.opacity(0.92))
             // Drag onto another category to put it in that place.
@@ -608,7 +610,7 @@ impl MemiView {
             let p = super::theme::colors(s.name, c.is_dark);
             let selected = prefs.scheme == s.name;
             let name = s.name;
-            previews = previews.child(div().id(("scheme", i)).flex_1().min_w_0().flex().flex_col().items_center().gap(px(6.)).cursor_pointer()
+            previews = previews.child(div().id(("scheme", i)).role(Role::Button).aria_label(format!("{} colours", s.name)).aria_selected(selected).flex_1().min_w_0().flex().flex_col().items_center().gap(px(6.)).cursor_pointer()
                 .on_click(cx.listener(move |this, _, _, cx| { let mut p = this.prefs.clone(); p.scheme = name.into(); this.set_prefs(p, cx); }))
                 .child(div().w_full().h(px(80.)).rounded(px(16.)).p(px(if selected { 3. } else { 0. }))
                     .border_2().border_color(if selected { c.ink } else { transparent_black() })
@@ -621,14 +623,14 @@ impl MemiView {
         }
         let mode = |id: &'static str, text: &str, ic: &str, a: Appearance| {
             let selected = prefs.appearance == a;
-            div().id(id).flex_1().h(px(40.)).rounded(px(13.)).flex().items_center().justify_center().gap(px(6.)).cursor_pointer()
+            div().id(id).role(Role::Button).aria_label(text.to_string()).aria_selected(selected).flex_1().h(px(40.)).rounded(px(13.)).flex().items_center().justify_center().gap(px(6.)).cursor_pointer()
                 .when(selected, |d| d.bg(c.sheet).shadow_sm())
                 .child(icon(ic, 15., c.ink)).child(label(text.to_string(), c.ink))
                 .on_click(cx.listener(move |this, _, _, cx| { let mut p = this.prefs.clone(); p.appearance = a; this.set_prefs(p, cx); }))
         };
         let reminder = |id: &'static str, text: &str, days: i64| {
             let on = prefs.birthday_reminders.contains(&days);
-            div().id(id).flex_1().h(px(36.)).rounded(px(12.)).flex().items_center().justify_center().cursor_pointer()
+            div().id(id).role(Role::Button).aria_label(format!("Birthday reminder: {text}")).aria_selected(on).flex_1().h(px(36.)).rounded(px(12.)).flex().items_center().justify_center().cursor_pointer()
                 .when(on, |d| d.bg(c.sheet).shadow_sm())
                 .child(label(text.to_string(), if on { c.ink } else { c.muted }))
                 .on_click(cx.listener(move |this, _, _, cx| {

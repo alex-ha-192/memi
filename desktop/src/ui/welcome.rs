@@ -96,7 +96,7 @@ impl MemiView {
 
 /// One of two answers, drawn exactly alike so neither is pushed.
 fn choice(id: &'static str, icon_name: &str, chip: Hsla, ink: Hsla, title: &str, text: &str, c: &Colors) -> Stateful<Div> {
-    div().id(id).w_full().min_w(px(0.)).rounded(px(22.)).bg(c.bg).border_1().border_color(c.line).p(px(16.))
+    div().id(id).role(Role::Button).aria_label(title.to_string()).aria_description(text.to_string()).w_full().min_w(px(0.)).rounded(px(22.)).bg(c.bg).border_1().border_color(c.line).p(px(16.))
         .flex().gap(px(14.)).items_start()
         .cursor_pointer().hover(|s| s.border_color(c.muted))
         .child(div().size(px(44.)).flex_none().rounded(px(14.)).bg(chip).flex().items_center().justify_center()
