@@ -1268,6 +1268,7 @@ name = "memi-engine"
 version = "0.6.3"
 dependencies = [
  "anyhow",
+ "jiff",
  "memi-core",
  "serde",
  "serde_json",

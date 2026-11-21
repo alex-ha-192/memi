@@ -9,7 +9,7 @@ publish = false
 [features]
 # Google Drive over HTTPS with rustls, for the native apps (Android and desktop). The web app
 # brings its own, using the browser's fetch.
-native-drive = ["dep:ureq", "dep:base64", "dep:jiff"]
+native-drive = ["dep:ureq", "dep:base64"]
 # The SQLite store used by the native apps.
 sqlite = ["dep:rusqlite"]
 
@@ -20,7 +20,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ureq = { version = "2", default-features = false, features = ["tls", "json"], optional = true }
 base64 = { version = "0.22", optional = true }
-jiff = { version = "0.2", optional = true }
+jiff = "0.2"
 rusqlite = { version = "0.43", features = ["bundled"], optional = true }
 
 [dev-dependencies]

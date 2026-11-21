@@ -4,6 +4,7 @@
 //! The screens stay native to each platform (Compose, GPUI, Leptos). They read from a [Memi] and
 //! make every change through it.
 
+pub mod dav;
 pub mod data;
 pub mod edits;
 pub mod memi;

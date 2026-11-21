@@ -356,12 +356,18 @@ fn SyncSheet() -> impl IntoView {
         let mins = (memi_engine::core::model::now_millis() - ms) / 60_000;
         match mins { m if m < 1 => "just now".to_string(), m if m < 60 => format!("{m} min ago"), m if m < 1440 => format!("{} h ago", m / 60), m => format!("{} d ago", m / 1440) }
     };
+    // Setting up WebDAV (or entering its password again).
+    let (dav_form, dav_busy) = (RwSignal::new(false), RwSignal::new(false));
+    let (dav_url, dav_user, dav_pass) = (RwSignal::new(String::new()), RwSignal::new(String::new()), RwSignal::new(String::new()));
+    let dav_error = RwSignal::new(None::<String>);
+    let open_dav_form = move || {
+        if let memi_engine::Provider::WebDav { url, user } = a.sync_settings().provider { dav_url.set(url); dav_user.set(user); }
+        dav_error.set(None);
+        dav_form.set(true);
+    };
     let content = move || {
         let s = a.sync_settings();
         let ui = a.status();
-        if sync::CLIENT_ID.is_none() {
-            return view! { <p>"Sync isn't set up in this build of Memi."</p> }.into_any();
-        }
         if ui.problem == Some(Problem::NeedsKey) {
             return view! {
                 <p>"Memi is already syncing on another device. To join it, this browser needs its key."</p>
@@ -370,7 +376,7 @@ fn SyncSheet() -> impl IntoView {
                         <b>"On any device that's already syncing"</b>
                         <span class="caption muted">"Open Memi there and choose Allow when it asks about this browser. It shows this code:"</span>
                         <span class="code">{ask.confirm.clone()}</span>
-                        <span class="caption muted">"Or, on your phone: Theme → Sync → Add a computer, then scan this."</span>
+                        <span class="caption muted">"Or, on your phone: Settings → Sync → Add a computer, then scan this."</span>
                         <div class="qr" inner_html=qr_svg(&ask.code)></div>
                     </div>
                 })}
@@ -385,12 +391,53 @@ fn SyncSheet() -> impl IntoView {
                 <button class="link danger" on:click=move |_| a.overlay.set(Some(Overlay::Confirm(Confirm::StartSyncOver)))>"Lost your recovery key? Start over"</button>
             }.into_any();
         }
+        if dav_form.get() {
+            let field = |label: &'static str, placeholder: &'static str, value: RwSignal<String>, kind: &'static str| view! {
+                <label class="col gap-s"><span class="label">{label}</span>
+                    <input type=kind placeholder=placeholder autocomplete="off" spellcheck="false" prop:value=move || value.get()
+                        on:input=move |e| value.set(input_value(&e)) /></label>
+            };
+            let ready = move || [dav_url, dav_user, dav_pass].iter().all(|v| !v.with(|t| t.trim().is_empty()));
+            return view! {
+                <p>"Memi keeps its encrypted files in one folder on your WebDAV server. On Nextcloud, the address is under Files › Settings › WebDAV, with a folder name added (it's made if it isn't there), and an app password comes from Settings › Security."</p>
+                <p class="caption muted">"From a browser, the server also has to allow requests from memi.yourmemi.app (CORS). Nextcloud and most servers don't by default; the desktop and Android apps don't need it."</p>
+                {field("Folder address", "https://cloud.example.com/remote.php/dav/files/you/Memi", dav_url, "url")}
+                {field("User name", "", dav_user, "text")}
+                {field("Password", "Password or app password", dav_pass, "password")}
+                {move || dav_error.get().map(|m| view! { <span class="caption danger">{m}</span> })}
+                <div class="row gap">
+                    <button class="button grow" on:click=move |_| { dav_form.set(false); dav_error.set(None); }>"Back"</button>
+                    <button class="button ink grow" prop:disabled=move || !ready() || dav_busy.get() on:click=move |_| {
+                        dav_busy.set(true);
+                        dav_error.set(None);
+                        let (u, n, p) = (dav_url.get_untracked(), dav_user.get_untracked(), dav_pass.get_untracked());
+                        spawn_local(async move {
+                            match sync::connect_webdav(a, &u, &n, &p).await {
+                                Ok(()) => { dav_form.set(false); dav_pass.set(String::new()); }
+                                Err(e) => dav_error.set(Some(e.to_string())),
+                            }
+                            dav_busy.set(false);
+                        });
+                    }>{move || if dav_busy.get() { "Connecting…" } else { "Connect" }}</button>
+                </div>
+            }.into_any();
+        }
         if !s.enabled {
             return view! {
-                <p>"Keep this Memi in step with your phone and computer through your own Google account."</p>
-                <p class="muted">"It's encrypted in this browser before it leaves, so Google can't read it, and it sits in a hidden folder only Memi can open. Nobody else, including us, ever gets a copy."</p>
-                <button class="button ink" prop:disabled=ui.busy on:click=move |_| spawn_local(sync::connect(a, true))>
-                    {if ui.busy { "Setting up…" } else { "Choose a Google account" }}</button>
+                <p>"Keep this Memi in step with your phone and computer, through a place you choose."</p>
+                <p class="muted">"It's encrypted in this browser before it leaves, so wherever it's kept can't read it. Nobody else, including us, ever gets a copy."</p>
+                {sync::CLIENT_ID.is_some().then(|| view! {
+                    <button class="choice" prop:disabled=ui.busy on:click=move |_| spawn_local(sync::connect(a, true))>
+                        <Icon name="cloud" size=22. />
+                        <span class="grow col"><b>"Google Drive"</b><span class="caption muted">{if ui.busy { "Setting up…" } else { "A hidden folder in your Google account, away from your Drive files" }}</span></span>
+                        <Icon name="right" size=17. />
+                    </button>
+                })}
+                <button class="choice" on:click=move |_| open_dav_form()>
+                    <Icon name="server" size=22. />
+                    <span class="grow col"><b>"WebDAV"</b><span class="caption muted">"Nextcloud, ownCloud, a NAS or another WebDAV server"</span></span>
+                    <Icon name="right" size=17. />
+                </button>
                 {match ui.problem { Some(Problem::Failed(m)) => Some(view! { <span class="caption danger">{m}</span> }), _ => None }}
             }.into_any();
         }
@@ -401,6 +448,10 @@ fn SyncSheet() -> impl IntoView {
                 <span class="label muted">{detail}</span>
             </div>
             {match ui.problem.clone() {
+                Some(Problem::NeedsSignIn) if matches!(s.provider, memi_engine::Provider::WebDav { .. }) => view! {
+                    <p>"Your WebDAV server turned down the saved password. Enter it again to keep syncing."</p>
+                    <button class="button ink" on:click=move |_| open_dav_form()>"Enter the password"</button>
+                }.into_any(),
                 Some(Problem::NeedsSignIn) => view! {
                     <p>"Google needs you to sign in again before Memi can sync. In a browser that's every hour or so."</p>
                     <button class="button ink" on:click=move |_| spawn_local(sync::connect(a, false))>"Reconnect"</button>

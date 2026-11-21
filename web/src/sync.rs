@@ -6,13 +6,14 @@
 //! you tap Reconnect (browsers block sign-in windows that open on their own).
 
 use crate::drive::Drive;
+use crate::webdav::{DavDrive, WebDrive};
 use crate::js;
 use crate::state::App;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use memi_engine::core::pairing;
 use memi_engine::sync::{self as engine, Handle};
-use memi_engine::Problem;
+use memi_engine::{Problem, Provider};
 use std::cell::RefCell;
 
 const LIVE_SECONDS: u32 = 10;
@@ -23,35 +24,45 @@ pub const CLIENT_ID: Option<&str> = option_env!("MEMI_WEB_CLIENT_ID");
 
 thread_local! {
     static TOKEN: RefCell<Option<(String, f64)>> = const { RefCell::new(None) };
+    /// The WebDAV password, from the browser's storage.
+    static DAV_PASSWORD: RefCell<Option<String>> = const { RefCell::new(None) };
 }
 
-fn drive() -> Option<Drive> {
-    TOKEN.with(|t| t.borrow().as_ref().filter(|(_, exp)| js::now_ms() < *exp - 60_000.).map(|(v, _)| Drive::new(v)))
+const DAV_PASSWORD_KEY: &str = "webdav-password";
+
+/// Where sync goes, connected: Google with an unexpired token, or WebDAV with the saved password.
+fn drive_for(app: App) -> Option<WebDrive> {
+    match app.memi.with_untracked(|m| m.sync.provider.clone()) {
+        Provider::WebDav { url, user } => DAV_PASSWORD.with(|p| p.borrow().clone())
+            .and_then(|pass| DavDrive::new(&url, &user, &pass).ok()).map(WebDrive::Dav),
+        _ => TOKEN.with(|t| t.borrow().as_ref().filter(|(_, exp)| js::now_ms() < *exp - 60_000.).map(|(v, _)| WebDrive::Google(Drive::new(v)))),
+    }
 }
 
 fn set_problem(app: App, p: Option<Problem>) { app.handle().with(|m| m.set_status(|s| s.problem = p)); }
 
 /// Signed out or expired: show Reconnect.
-fn needs_sign_in(app: App) -> Option<Drive> {
-    let d = drive();
+fn needs_sign_in(app: App) -> Option<WebDrive> {
+    let d = drive_for(app);
     if d.is_none() { set_problem(app, Some(Problem::NeedsSignIn)); }
     d
 }
 
 /// After an engine call: if Google rejected the token, forget it so Reconnect asks for a new one.
 fn check_token(app: App) {
-    if app.memi.with_untracked(|m| m.status.problem == Some(Problem::NeedsSignIn)) { TOKEN.with(|t| *t.borrow_mut() = None); }
+    if app.memi.with_untracked(|m| m.status.problem == Some(Problem::NeedsSignIn) && m.sync.provider == Provider::Google) { TOKEN.with(|t| *t.borrow_mut() = None); }
 }
 
 /// Called once at start.
 pub fn start(app: App) {
     spawn_local(async move {
-        if app.memi.with_untracked(|m| m.sync.enabled) { js::load_gis().await; }
+        if let Some(p) = js::idb_get_text(DAV_PASSWORD_KEY).await { DAV_PASSWORD.with(|x| *x.borrow_mut() = Some(p)); }
+        if app.memi.with_untracked(|m| m.sync.enabled && m.sync.provider == Provider::Google) { js::load_gis().await; }
         loop {
             gloo_timers::future::TimeoutFuture::new(LIVE_SECONDS * 1_000).await;
             let (on, idle) = app.memi.with_untracked(|m| (m.sync.enabled, !m.status.busy && m.status.problem.is_none()));
             if !on { continue; }
-            if drive().is_none() {
+            if drive_for(app).is_none() {
                 if app.memi.with_untracked(|m| m.status.problem.is_none()) { set_problem(app, Some(Problem::NeedsSignIn)); }
                 continue;
             }
@@ -67,7 +78,7 @@ pub fn changed(app: App) {
     app.push_seq.set(seq);
     spawn_local(async move {
         gloo_timers::future::TimeoutFuture::new(PUSH_DELAY_MS).await;
-        if app.push_seq.get_untracked() == seq && drive().is_some() { sync_now(app).await; }
+        if app.push_seq.get_untracked() == seq && drive_for(app).is_some() { sync_now(app).await; }
     });
 }
 
@@ -91,7 +102,8 @@ pub async fn connect(app: App, choose_account: bool) {
     };
     TOKEN.with(|x| *x.borrow_mut() = Some((t.value.clone(), js::now_ms() + t.expires_in * 1000.)));
     set_problem(app, None);
-    let d = Drive::new(&t.value);
+    app.handle().with(|m| m.update_sync(|s| s.provider = Provider::Google));
+    let d = WebDrive::Google(Drive::new(&t.value));
     if app.memi.with_untracked(|m| m.sync.enabled) {
         // Reconnecting: just carry on syncing.
         engine::sync_now(&app.handle(), &d).await;
@@ -102,6 +114,30 @@ pub async fn connect(app: App, choose_account: bool) {
     check_token(app);
 }
 
+/// Connects to a WebDAV folder, after checking the address and password. Err is shown in the form.
+pub async fn connect_webdav(app: App, url: &str, user: &str, password: &str) -> anyhow::Result<()> {
+    let user = user.trim();
+    anyhow::ensure!(!user.is_empty(), "Enter your user name");
+    let d = DavDrive::new(url, user, password)?;
+    match memi_engine::sync::Drive::find(&d, engine::FILE).await {
+        Err(e) if e.is::<engine::Unauthorized>() => anyhow::bail!("The server turned down that user name and password. On Nextcloud, use an app password (Settings › Security)."),
+        Err(e) => return Err(e),
+        Ok(_) => {}
+    }
+    js::idb_set_text(DAV_PASSWORD_KEY, password).await?;
+    DAV_PASSWORD.with(|x| *x.borrow_mut() = Some(password.to_string()));
+    let url = memi_engine::dav::normalise_url(url)?;
+    app.handle().with(|m| { m.update_sync(|s| s.provider = Provider::WebDav { url, user: user.to_string() }); m.set_status(|s| s.problem = None) });
+    let d = WebDrive::Dav(d);
+    if app.memi.with_untracked(|m| m.sync.enabled) {
+        engine::sync_now(&app.handle(), &d).await;
+    } else {
+        engine::connect(&app.handle(), &d).await;
+        if app.memi.with_untracked(|m| m.status.asking.is_some()) { wait_for_key(app); }
+    }
+    Ok(())
+}
+
 /// While asking another device for the key: look for its answer every few seconds.
 fn wait_for_key(app: App) {
     spawn_local(async move {
@@ -110,10 +146,10 @@ fn wait_for_key(app: App) {
         while js::now_ms() < until {
             gloo_timers::future::TimeoutFuture::new(3_000).await;
             if app.memi.with_untracked(|m| m.status.asking.as_ref().map(|a| a.id.clone())) != Some(id.clone()) { return; }
-            let Some(d) = drive() else { return };
+            let Some(d) = drive_for(app) else { return };
             if let Ok(true) = engine::check_pairing(&app.handle(), &d).await { return; }
         }
-        if let Some(d) = drive() { engine::cancel_asking(&app.handle(), &d).await; }
+        if let Some(d) = drive_for(app) { engine::cancel_asking(&app.handle(), &d).await; }
     });
 }
 
@@ -139,8 +175,10 @@ pub async fn start_over(app: App) {
 }
 
 pub async fn turn_off(app: App) {
-    if let Some(d) = drive() { engine::cancel_asking(&app.handle(), &d).await; }
+    if let Some(d) = drive_for(app) { engine::cancel_asking(&app.handle(), &d).await; }
     if let Some(t) = TOKEN.with(|t| t.borrow_mut().take()) { js::gis_revoke(&t.0); }
+    DAV_PASSWORD.with(|x| *x.borrow_mut() = None);
+    js::idb_delete(DAV_PASSWORD_KEY).await;
     app.handle().with(|m| m.turn_off_sync(false));
 }
 

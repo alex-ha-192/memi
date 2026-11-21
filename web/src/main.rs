@@ -3,6 +3,7 @@
 //! Google Drive app folder, encrypted.
 
 mod drive;
+mod webdav;
 mod js;
 mod platform;
 mod state;

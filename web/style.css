@@ -205,6 +205,9 @@ textarea { resize: vertical; }
 .first-launch .accent { color: var(--tileink3); }
 .choice { display: flex; gap: 14px; align-items: flex-start; text-align: left; width: 100%; padding: 16px; border-radius: 22px; background: var(--bg); border: 1.5px solid var(--line); color: var(--ink); cursor: pointer; font: inherit; }
 .choice:hover { border-color: var(--muted); }
+.choice > svg { flex: none; margin-top: 2px; }
+.choice b { display: block; font-size: 16px; margin-bottom: 2px; }
+.gap-s { gap: 6px; }
 .choice strong { display: block; font-size: 17px; margin-bottom: 4px; }
 .choice .muted { display: block; font-size: 14px; line-height: 1.45; font-weight: 500; }
 .chip-icon { width: 44px; height: 44px; flex: none; border-radius: 14px; display: grid; place-items: center; }
