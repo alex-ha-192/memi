@@ -61,6 +61,8 @@ jobs:
           # The site's security policy allows no inline scripts, so Trunk's start-up script
           # moves to its own file.
           python3 scripts/externalise_boot.py dist
+          # A service worker keeps a copy of the app so it opens with no connection.
+          python3 scripts/make_service_worker.py dist
           ls -la dist
       - name: Check the page starts under the real security policy
         working-directory: web
