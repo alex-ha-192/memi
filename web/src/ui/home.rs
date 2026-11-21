@@ -17,7 +17,7 @@ pub fn Home() -> impl IntoView {
     let a = app();
     view! {
         <Header />
-        <SyncBanner />
+        
         {move || if a.search.get().is_some() { view! { <SearchResults /> }.into_any() } else { view! { <Lists /> }.into_any() }}
     }
 }
@@ -57,7 +57,9 @@ fn Header() -> impl IntoView {
     }
 }
 
-/// Sync in a word or two, beside the date: Synced, Syncing…, Not synced or Sign in. Opens Sync.
+/// Sync in a word or two, beside the date: Synced, Syncing…, Not synced, Reconnect or Sign in.
+/// Opens Sync, except Reconnect: Google's sign-in in a browser lasts about an hour, and tapping the
+/// chip renews it there and then (a browser only allows Google's window right after a tap).
 /// Routine checks in the background don't show as Syncing.
 #[component]
 fn SyncChip() -> impl IntoView {
@@ -65,39 +67,26 @@ fn SyncChip() -> impl IntoView {
     let state = move || {
         let st = a.status();
         let on = a.sync_settings().enabled;
-        if matches!(st.problem, Some(Problem::NeedsSignIn)) { ("signin", "cloud-alert", "Sign in") }
+        let google = a.sync_settings().provider == memi_engine::Provider::Google;
+        if matches!(st.problem, Some(Problem::NeedsSignIn)) && on && google { ("signin", "refresh", "Reconnect") }
+        else if matches!(st.problem, Some(Problem::NeedsSignIn)) { ("signin", "cloud-alert", "Sign in") }
         else if st.busy && (!on || st.problem.is_some()) { ("syncing", "refresh", "Syncing…") }
         else if on && st.problem.is_none() { ("synced", "cloud-check", "Synced") }
         else { ("off", "cloud-off", "Not synced") }
     };
     view! {
         <button class=move || format!("sync-chip {}", state().0)
-            aria-label=move || format!("Sync: {}. Open Sync", state().2)
-            on:click=move |_| { a.theme_open.set(false); a.overlay.set(Some(Overlay::Sync)); }>
+            aria-label=move || if state().2 == "Reconnect" { "Sync is paused: reconnect to Google".to_string() } else { format!("Sync: {}. Open Sync", state().2) }
+            on:click=move |_| {
+                a.theme_open.set(false);
+                if state().2 == "Reconnect" { spawn_local(sync::connect(a, false)); } else { a.overlay.set(Some(Overlay::Sync)); }
+            }>
             {move || view! { <Icon name=state().1 size=15. /> }}
             <span>{move || state().2}</span>
         </button>
     }
 }
 
-/// When sync is on but paused (Google's sign-in lasts an hour in a browser).
-#[component]
-fn SyncBanner() -> impl IntoView {
-    let a = app();
-    move || {
-        let on = a.memi.with(|m| m.sync.enabled);
-        match a.memi.with(|m| m.status.problem.clone()) {
-            Some(Problem::NeedsSignIn) if on => view! {
-                <div class="banner">
-                    <span class="grow">"Sync is paused until you reconnect to Google."</span>
-                    <button class="chip ink" on:click=move |_| spawn_local(sync::connect(a, false))>"Reconnect"</button>
-                </div>
-            }.into_any(),
-            Some(Problem::NeedsKey) if !on => ().into_any(),
-            _ => ().into_any(),
-        }
-    }
-}
 
 #[component]
 fn Lists() -> impl IntoView {

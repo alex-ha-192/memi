@@ -118,17 +118,6 @@ export function onVisibilityChange(callback) {
 
 export function isVisible() { return document.visibilityState === "visible"; }
 
-/**
- * Calls back on every tap, click or key press, before the page handles it. A browser only lets a
- * page open Google's sign-in window just after the person does something, so this is when an
- * expired Google token can be renewed without asking.
- */
-export function onInteraction(callback) {
-  const run = () => { try { callback(); } catch (_) {} };
-  window.addEventListener("pointerdown", run, { capture: true, passive: true });
-  window.addEventListener("keydown", run, { capture: true, passive: true });
-}
-
 export function copyText(text) {
   if (navigator.clipboard) navigator.clipboard.writeText(text).catch(() => {});
 }

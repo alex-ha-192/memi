@@ -31,16 +31,6 @@ thread_local! {
 const DAV_PASSWORD_KEY: &str = "webdav-password";
 /// The Google token and when it runs out ("token|expiry ms"), so a reload within the hour keeps syncing.
 const GOOGLE_TOKEN_KEY: &str = "google-token";
-/// Renew a Google token this long before it runs out, so sync never stops while someone's using Memi.
-const RENEW_EARLY_MS: f64 = 10. * 60_000.;
-/// After a renewal that didn't work (a blocked or closed window), wait this long before trying again,
-/// so not every tap opens a window. Reconnect in Sync still works at any time.
-const RENEW_BACKOFF_MS: f64 = 2. * 60_000.;
-
-thread_local! {
-    static RENEWING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
-    static RENEW_AFTER: std::cell::Cell<f64> = const { std::cell::Cell::new(0.) };
-}
 
 /// Keeps a new Google token, in memory and in the browser, and clears the sign-in problem.
 fn keep_token(app: App, t: &js::Token) {
@@ -54,31 +44,6 @@ fn keep_token(app: App, t: &js::Token) {
 fn forget_token() {
     TOKEN.with(|t| *t.borrow_mut() = None);
     spawn_local(async { js::idb_delete(GOOGLE_TOKEN_KEY).await });
-}
-
-/// Whether sync goes through Google and the token is missing or about to run out.
-fn token_running_out(app: App) -> bool {
-    app.memi.with_untracked(|m| m.sync.enabled && m.sync.provider == Provider::Google)
-        && TOKEN.with(|t| t.borrow().as_ref().is_none_or(|(_, until)| js::now_ms() > *until - RENEW_EARLY_MS))
-}
-
-/// On every tap or key press: if the Google token has run out (or soon will), renew it now, while
-/// the browser allows the sign-in window. With consent already given, Google closes it at once.
-fn renew_on_interaction(app: App) {
-    let Some(client) = CLIENT_ID else { return };
-    if !token_running_out(app) || RENEWING.with(|r| r.get()) || js::now_ms() < RENEW_AFTER.with(|r| r.get()) || !js::gis_ready() { return; }
-    RENEWING.with(|r| r.set(true));
-    let hint = app.memi.with_untracked(|m| m.sync.account.clone()).unwrap_or_default();
-    spawn_local(async move {
-        match js::gis_request(client, &hint, "").await {
-            Ok(t) => {
-                keep_token(app, &t);
-                sync_now(app).await;
-            }
-            Err(_) => RENEW_AFTER.with(|r| r.set(js::now_ms() + RENEW_BACKOFF_MS)),
-        }
-        RENEWING.with(|r| r.set(false));
-    });
 }
 
 /// Where sync goes, connected: Google with an unexpired token, or WebDAV with the saved password.
@@ -115,10 +80,6 @@ pub fn start(app: App) {
         }) {
             if js::now_ms() < until - 60_000. { TOKEN.with(|t| *t.borrow_mut() = Some((value, until))); }
         }
-        // Renew the token on the next tap or key press once it runs out, instead of asking.
-        let on_tap = wasm_bindgen::closure::Closure::<dyn FnMut()>::new(move || renew_on_interaction(app));
-        js::on_interaction(&on_tap);
-        on_tap.forget();
         if app.memi.with_untracked(|m| m.sync.enabled && m.sync.provider == Provider::Google) {
             js::load_gis().await;
             if drive_for(app).is_some() { sync_now(app).await; }

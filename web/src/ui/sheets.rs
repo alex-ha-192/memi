@@ -453,7 +453,7 @@ fn SyncSheet() -> impl IntoView {
                     <button class="button ink" on:click=move |_| open_dav_form()>"Enter the password"</button>
                 }.into_any(),
                 Some(Problem::NeedsSignIn) => view! {
-                    <p>"Google's sign-in in a browser lasts about an hour. Memi renews it by itself the next time you tap or type; if your browser blocked that, reconnect here."</p>
+                    <p>"Google's sign-in in a browser lasts about an hour, so sync pauses until you reconnect. You can also tap Reconnect beside the date."</p>
                     <button class="button ink" on:click=move |_| spawn_local(sync::connect(a, false))>"Reconnect"</button>
                 }.into_any(),
                 Some(Problem::Failed(m)) => view! { <p class="muted">{format!("The last sync didn't work ({m}). Memi will try again by itself.")}</p> }.into_any(),
