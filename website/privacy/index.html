@@ -11,7 +11,7 @@
   <meta name="theme-color" content="#15141E" media="(prefers-color-scheme: dark)">
   <link rel="icon" href="/img/icon.svg" type="image/svg+xml">
   <link rel="icon" href="/img/favicon-32.png" sizes="32x32" type="image/png">
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/style.css?v=2">
   <script src="/theme.js"></script>
 </head>
 <body>
@@ -41,12 +41,12 @@
       <p>Memi is an independent, open-source project made by one developer in the United Kingdom, who publishes it as <a href="https://github.com/alex-ha-192">alex-ha-192</a> on GitHub. “We” means that developer. For the little personal data described under <a href="#what-we-handle">What we do handle</a>, that developer is the data controller under UK data protection law. You can read every line of the code on <a href="https://github.com/alex-ha-192/memi">GitHub</a>. You can reach us at <a href="mailto:hello@yourmemi.app">hello@yourmemi.app</a>, or <a href="https://github.com/alex-ha-192/memi/issues">open an issue</a> on GitHub. Please don't paste anything you keep in Memi into an email or an issue.</p>
 
       <h2>What the app keeps, and where</h2>
-      <table>
+      <table class="stack">
         <tr><th>What</th><th>Where it's kept</th></tr>
-        <tr><td>People, their categories, your notes, dates and profile photos</td><td>In the app's private storage on your phone or computer, or, in the web app, in your browser's storage for memi.yourmemi.app. Photos are re-saved when you crop them, which drops their location and camera details.</td></tr>
-        <tr><td>Your theme and settings</td><td>On the same device.</td></tr>
-        <tr><td>The sync key (only if you turn on sync)</td><td>On Android, in the Android Keystore. On Windows, in Windows Credential Manager. On Linux, in your desktop's keyring, or in the app's own folder, readable only by your user account, if there's no keyring. In the web app, in your browser's storage for memi.yourmemi.app, next to your data.</td></tr>
-        <tr><td>Birthday reminders (only if you turn them on)</td><td>Worked out on your device from the birthdays you've added. Nothing is sent anywhere to show them.</td></tr>
+        <tr><td data-label="What">People, their categories, your notes, dates and profile photos</td><td data-label="Where it's kept">In the app's private storage on your phone or computer, or, in the web app, in your browser's storage for memi.yourmemi.app. Photos are re-saved when you crop them, which drops their location and camera details.</td></tr>
+        <tr><td data-label="What">Your theme and settings</td><td data-label="Where it's kept">On the same device.</td></tr>
+        <tr><td data-label="What">The sync key (only if you turn on sync)</td><td data-label="Where it's kept">On Android, in the Android Keystore. On Windows, in Windows Credential Manager. On Linux, in your desktop's keyring, or in the app's own folder, readable only by your user account, if there's no keyring. In the web app, in your browser's storage for memi.yourmemi.app, next to your data.</td></tr>
+        <tr><td data-label="What">Birthday reminders (only if you turn them on)</td><td data-label="Where it's kept">Worked out on your device from the birthdays you've added. Nothing is sent anywhere to show them.</td></tr>
       </table>
       <p>None of this is sent to us. We don't have a server to send it to.</p>
 

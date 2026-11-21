@@ -29,6 +29,8 @@
 
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
+/* Never scroll sideways: anything too wide is clipped rather than widening the page. */
+html, body { overflow-x: clip; }
 body {
   margin: 0; background: var(--bg); color: var(--ink);
   font: 400 17px/1.6 "Jakarta", system-ui, sans-serif;
