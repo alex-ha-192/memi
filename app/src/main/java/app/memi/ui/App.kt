@@ -110,12 +110,9 @@ fun MemiRoot(vm: AppViewModel, sync: SyncManager) {
             }
             when {
                 welcomed == null -> Box(Modifier.fillMaxSize().background(Bento.colors.bg))
-                welcomed == false && people.isEmpty() && !syncState.enabled -> FirstLaunch { token ->
+                welcomed == false && people.isEmpty() && !syncState.enabled -> FirstLaunch { openSync ->
                     vm.setWelcomed()
-                    if (token != null) {
-                        sync.launch { connect(token) }
-                        vm.requestSyncSheet()
-                    }
+                    if (openSync) vm.requestSyncSheet()
                 }
                 else -> PointerModeProvider { Content(vm) }
             }

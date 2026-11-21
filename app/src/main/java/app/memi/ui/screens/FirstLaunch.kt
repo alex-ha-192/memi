@@ -44,7 +44,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import app.memi.platform.PlatformBackHandler
-import app.memi.platform.rememberGoogleSignIn
 import app.memi.ui.theme.Bento
 import app.memi.ui.theme.BentoType
 
@@ -54,18 +53,14 @@ import app.memi.ui.theme.BentoType
  * between syncing with Google and keeping everything on this phone. Both answers carry the same
  * weight, nothing is chosen for them, and it's never asked again (Sync stays in Settings).
  *
- * [onDone] is called once with the Google token if they signed in (null if they didn't).
+ * [onDone] is called once, with whether to open Sync next (to pick Google Drive, WebDAV or a folder).
  */
 @Composable
-fun FirstLaunch(onDone: (token: String?) -> Unit) {
+fun FirstLaunch(onDone: (openSync: Boolean) -> Unit) {
     val colors = Bento.colors
     var step by rememberSaveable { mutableStateOf(Step.Question) }
     var error by rememberSaveable { mutableStateOf<String?>(null) }
-    val signIn = rememberGoogleSignIn(
-        onToken = { onDone(it) },
-        onError = { error = it },
-    )
-    fun chooseAccount() { error = null; signIn() }
+    fun chooseAccount() { error = null; onDone(true) }
     PlatformBackHandler(step == Step.Choice) { step = Step.Question; error = null }
 
     Box(
@@ -96,12 +91,12 @@ fun FirstLaunch(onDone: (token: String?) -> Unit) {
                     Choice(
                         Icons.Rounded.Devices, colors.tiles[3], colors.tileInks[3],
                         "Yes, on another device",
-                        "Sign in with the same Google account, then allow this phone from the other device.",
+                        "Connect to the same place it syncs to (Google Drive, WebDAV or a folder), then allow this phone from the other device.",
                     ) { chooseAccount() }
                     Choice(
                         Icons.Rounded.AutoAwesome, colors.gift, colors.giftInk,
                         "No, I'm new",
-                        "Start fresh. Next, you choose whether to sync with Google or keep everything on this phone.",
+                        "Start fresh. Next, you choose whether to sync or keep everything on this phone.",
                     ) { error = null; step = Step.Choice }
                 }
                 Step.Choice -> {
@@ -112,14 +107,14 @@ fun FirstLaunch(onDone: (token: String?) -> Unit) {
                     )
                     Choice(
                         Icons.Rounded.CloudSync, colors.tiles[3], colors.tileInks[3],
-                        "Sync with Google",
-                        "Your phone, computer and browser stay in step. It's encrypted on this phone before it leaves.",
+                        "Turn on sync",
+                        "Your phone, computer and browser stay in step, through Google Drive, WebDAV or a folder. It's encrypted on this phone before it leaves.",
                     ) { chooseAccount() }
                     Choice(
                         Icons.Rounded.PhoneAndroid, colors.plan, colors.planInk,
                         "Just this phone",
                         "Everything stays here. You can turn on sync later in Settings.",
-                    ) { onDone(null) }
+                    ) { onDone(false) }
                 }
             }
             error?.let { Text(it, style = BentoType.body, color = colors.danger) }

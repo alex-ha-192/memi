@@ -36,12 +36,12 @@ impl MemiView {
         self.set_prefs(p, cx);
     }
 
-    /// Signs in (in the browser) and connects; the Sync sheet shows how it's going, including the
-    /// code to compare if another device has the key.
-    fn welcome_sign_in(&mut self, cx: &mut Context<Self>) {
+    /// Opens Sync to pick where it goes (Google Drive, WebDAV or a folder). Connecting there shows
+    /// the code to compare if another device has the key.
+    fn welcome_sync(&mut self, cx: &mut Context<Self>) {
         self.finish_welcome(cx);
         self.overlay = Some(Overlay::Sync);
-        self.run_sync(cx, |e| e.sign_in_and_connect());
+        cx.notify();
     }
 
     pub fn welcome_view(&mut self, step: Welcome, c: &Colors, cx: &mut Context<Self>) -> Div {
@@ -54,18 +54,18 @@ impl MemiView {
             Welcome::Question => {
                 choices = choices
                     .child(choice("yes", "monitor-smartphone", c.tile(3), c.tile_ink(3), "Yes, on another device",
-                        "Sign in with the same Google account, then allow this computer from the other device.", c)
-                        .on_click(cx.listener(|this, _, _, cx| this.welcome_sign_in(cx))))
+                        "Connect to the same place it syncs to (Google Drive, WebDAV or a folder), then allow this computer from the other device.", c)
+                        .on_click(cx.listener(|this, _, _, cx| this.welcome_sync(cx))))
                     .child(choice("new", "sparkles", c.gift(), c.gift_ink(), "No, I'm new",
-                        "Start fresh. Next, you choose whether to sync with Google or keep everything on this computer.", c)
+                        "Start fresh. Next, you choose whether to sync or keep everything on this computer.", c)
                         .on_click(cx.listener(|this, _, _, cx| { this.welcome = Some(Welcome::Choice); cx.notify(); })));
             }
             Welcome::Choice => {
                 choices = choices
                     .child(div().pt(px(4.)).child(caption("USE MEMI ON MORE THAN ONE DEVICE?", c.muted)))
-                    .child(choice("sync", "cloud", c.tile(3), c.tile_ink(3), "Sync with Google",
-                        "Your computer, phone and browser stay in step. Encrypted here before it leaves. Opens your browser to sign in.", c)
-                        .on_click(cx.listener(|this, _, _, cx| this.welcome_sign_in(cx))))
+                    .child(choice("sync", "cloud", c.tile(3), c.tile_ink(3), "Turn on sync",
+                        "Your computer, phone and browser stay in step, through Google Drive, WebDAV or a folder. Encrypted here before it leaves.", c)
+                        .on_click(cx.listener(|this, _, _, cx| this.welcome_sync(cx))))
                     .child(choice("here", "monitor", c.tile(1), c.tile_ink(1), "Just this computer",
                         "Everything stays here. You can turn on sync later in Settings.", c)
                         .on_click(cx.listener(|this, _, _, cx| { this.finish_welcome(cx); this.check_reminders(cx); })));
