@@ -342,7 +342,15 @@ impl HostFolderDrive {
 
 impl engine::Drive for HostFolderDrive {
     async fn find(&self, name: &str) -> anyhow::Result<Option<engine::RemoteFile>> {
-        Ok(self.files()?.into_iter().find(|f| f.name == name).map(Self::remote))
+        let Some(f) = self.files()?.into_iter().find(|f| f.name == name) else { return Ok(None) };
+        // Times are only to the millisecond and two rewrites can be the same size: add a hash
+        // of the contents so sync never mistakes a new version for the old one.
+        let mut r = Self::remote(f);
+        if let Some(bytes) = self.0.read(name.to_string()) {
+            let h = bytes.iter().fold(0xcbf29ce484222325u64, |h, b| (h ^ *b as u64).wrapping_mul(0x100000001b3));
+            r.modified_time = r.modified_time.map(|t| format!("{t}-{h:016x}"));
+        }
+        Ok(Some(r))
     }
     async fn list(&self, prefix: &str) -> anyhow::Result<Vec<engine::RemoteFile>> {
         let mut v: Vec<HostFile> = self.files()?.into_iter().filter(|f| f.name.starts_with(prefix)).collect();

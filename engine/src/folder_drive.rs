@@ -3,11 +3,16 @@
 //! there; moving them between devices is the folder's job.
 //!
 //! A file's id is its name. Its "modified time", which sync only compares for equality, is the
-//! modification time in nanoseconds plus the size, so a rewrite within the same second still shows.
+//! modification time, the size and a hash of the contents, so even a quick rewrite shows.
 
 use crate::sync::RemoteFile;
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
+
+/// FNV-1a: quick, and plenty to tell two versions of a file apart (not for security).
+fn fnv1a(bytes: &[u8]) -> u64 {
+    bytes.iter().fold(0xcbf29ce484222325u64, |h, b| (h ^ *b as u64).wrapping_mul(0x100000001b3))
+}
 
 pub struct FolderDrive {
     dir: PathBuf,
@@ -28,7 +33,10 @@ impl FolderDrive {
     fn remote(name: &str, path: &Path) -> Result<RemoteFile> {
         let meta = std::fs::metadata(path)?;
         let nanos = meta.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_nanos()).unwrap_or(0);
-        Ok(RemoteFile { id: name.to_string(), name: name.to_string(), modified_time: Some(format!("{nanos}-{}", meta.len())) })
+        // Many file systems only keep the time to a few milliseconds, so two quick rewrites of the
+        // same size could look alike: a hash of the contents tells them apart.
+        let hash = fnv1a(&std::fs::read(path)?);
+        Ok(RemoteFile { id: name.to_string(), name: name.to_string(), modified_time: Some(format!("{nanos}-{}-{hash:016x}", meta.len())) })
     }
 
     fn write(&self, name: &str, bytes: &[u8]) -> Result<RemoteFile> {
