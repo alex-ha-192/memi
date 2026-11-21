@@ -100,7 +100,8 @@ impl Data {
 
     // --- People ---------------------------------------------------------------------------------
 
-    /// Adds someone with the three starter categories; Gift ideas builds up to their birthday.
+    /// Adds someone with the three starter categories. None builds up to a date until you choose
+    /// one (Gift ideas used to count down to the birthday by default, before 1.0).
     pub fn add_person(&mut self, mut p: Person) -> String {
         let t = now();
         p.uid = new_uid();
@@ -108,7 +109,7 @@ impl Data {
         p.created_at = t;
         p.tone_index = (self.snap.people.len() % 8) as i32;
         p.sort_order = self.snap.people.iter().map(|x| x.sort_order).max().unwrap_or(0) + 1;
-        for (i, (name, k, slot, occ)) in [("Gift ideas", kind::GIFT, 0, occasion::BIRTHDAY), ("Plans", kind::PLAN, 1, occasion::NONE), ("Notes", kind::NOTE, 2, occasion::NONE)].into_iter().enumerate() {
+        for (i, (name, k, slot, occ)) in [("Gift ideas", kind::GIFT, 0, occasion::NONE), ("Plans", kind::PLAN, 1, occasion::NONE), ("Notes", kind::NOTE, 2, occasion::NONE)].into_iter().enumerate() {
             self.snap.collections.push(Collection {
                 id: 0, uid: new_uid(), person_id: None, person_uid: Some(p.uid.clone()), name: name.into(), kind: k.into(),
                 slot, sort_order: i as i32, occasion: occ.into(), occasion_day: None, yearly: false, updated_at: t,

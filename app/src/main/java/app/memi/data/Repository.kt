@@ -64,7 +64,7 @@ class Repository(private val engine: Engine) {
 
     // People
 
-    /** Adds someone with the three starter categories; Gift ideas builds up to their birthday. */
+    /** Adds someone with the three starter categories (Gift ideas, Plans, Notes), none tied to a date. */
     suspend fun addPerson(person: Person): Long = edit { addPerson(person.toEngine()) }
 
     suspend fun updatePerson(person: Person) = change { updatePerson(person.toEngine()) }

@@ -320,7 +320,6 @@ impl SqliteStore {
 
     // --- People ------------------------------------------------------------------------------
 
-    /// Adds someone with the three starter categories; Gift ideas builds up to their birthday.
     /// What the store holds, for starting the engine.
     pub fn load(&self) -> Snapshot { self.saved.clone() }
 

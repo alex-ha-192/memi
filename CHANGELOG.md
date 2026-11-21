@@ -15,6 +15,7 @@ The first full release. Sync can now go to your own WebDAV server or a folder as
 
 ### Changed
 - A new look for people: each person's card is tinted in their own colour, with their relationship and how many things are open beneath their name. The colours keep text readable (4.5:1 or better) in every theme, light and dark. On phones, Everyone is now a list of these cards.
+- Gift ideas for someone new no longer count down to their birthday by default; choose a date for any category when you want one. Existing categories keep their dates.
 - First launch: "Yes, on another device" and "Turn on sync" open Sync, where you pick Google Drive, WebDAV or a folder.
 - Saving is much quicker with a lot in Memi: an edit with 6,000 notes saves in about 5 ms instead of 70 ms on Android and desktop.
 - Smaller downloads: the Android app's libraries are compressed in the APK, and the desktop app is fully optimised.

@@ -18,7 +18,7 @@ fn a_new_person_gets_three_starter_categories() {
         let names: Vec<&str> = cats.iter().map(|c| c.name.as_str()).collect();
         assert_eq!(names, ["Gift ideas", "Plans", "Notes"]);
         assert_eq!(cats[0].kind, kind::GIFT);
-        assert_eq!(cats[0].occasion, occasion::BIRTHDAY, "gift ideas build up to the birthday");
+        assert!(cats.iter().all(|c| c.occasion == occasion::NONE), "none counts down to anything until you choose a date");
         assert_eq!(cats.iter().map(|c| c.slot).collect::<Vec<_>>(), [0, 1, 2], "one colour each");
         let p = m.data().person(&maya).unwrap();
         assert!(p.id > 0 && p.created_at > 0 && p.updated_at == p.created_at);

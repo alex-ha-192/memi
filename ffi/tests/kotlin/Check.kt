@@ -40,7 +40,7 @@ fun main() {
     check(all.people.single().birthdayMonth == 11, "person added with birthday")
     check(all.collections.count { it.personId == maya } == 3, "three starter categories")
     val gifts = all.collections.first { it.personId == maya && it.kind == "GIFT" }
-    check(gifts.occasion == "BIRTHDAY", "gift ideas build up to the birthday")
+    check(gifts.occasion == "NONE", "gift ideas don't count down to the birthday unless you choose it")
     val n = e.addNote(maya, gifts.id, "  Blue mug  ", null)
     val note = e.everything().notes.single { it.id == n }
     check(note.text == "Blue mug", "note text trimmed")
