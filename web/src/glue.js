@@ -87,17 +87,100 @@ export function gisRevoke(token) {
 
 // --- Photos -------------------------------------------------------------------------------------
 
-/** The middle of a picture at 4:5, at most 1080 wide, as JPEG bytes (the same as the apps keep). */
-export async function cropPhoto(file) {
+/**
+ * Lets the person place a picture in the 4:5 frame before it's kept, as the apps do: drag it with
+ * a finger or the mouse, zoom with the slider (or pinch, or the mouse wheel). Resolves to the
+ * cropped JPEG bytes, or null if they cancel.
+ */
+export async function cropInteractive(file) {
   const bitmap = await createImageBitmap(file);
-  const want = 4 / 5;
-  let w = bitmap.width, h = bitmap.height, x = 0, y = 0;
-  if (w / h > want) { const nw = Math.round(h * want); x = Math.round((w - nw) / 2); w = nw; }
-  else { const nh = Math.round(w / want); y = Math.round((h - nh) / 2); h = nh; }
-  const outW = Math.min(1080, w), outH = Math.round(outW / want);
+  const url = URL.createObjectURL(file);
+  const FW = 260, FH = 325; // the frame, 4:5
+  const cover = Math.max(FW / bitmap.width, FH / bitmap.height);
+  let zoom = 1, ox = 0, oy = 0; // the picture's offset from centred, in frame pixels
+
+  const el = (tag, cls, parent) => { const e = document.createElement(tag); if (cls) e.className = cls; if (parent) parent.appendChild(e); return e; };
+  const scrim = el("div", "scrim crop-scrim", document.body);
+  const box = el("div", "crop-box", document.body);
+  box.setAttribute("role", "dialog");
+  box.setAttribute("aria-label", "Place the photo");
+  el("h2", "", box).textContent = "Place the photo";
+  el("p", "caption muted", box).textContent = "Drag it into place, and zoom with the slider.";
+  const frame = el("div", "crop-frame", box);
+  const img = el("img", "", frame);
+  img.src = url; img.alt = ""; img.draggable = false;
+  const zoomRow = el("label", "crop-zoom", box);
+  el("span", "caption muted", zoomRow).textContent = "Zoom";
+  const slider = el("input", "", zoomRow);
+  Object.assign(slider, { type: "range", min: "1", max: "4", step: "0.01", value: "1" });
+  const buttons = el("div", "row gap", box);
+  const cancel = el("button", "button grow", buttons); cancel.textContent = "Cancel";
+  const done = el("button", "button ink grow", buttons); done.textContent = "Use photo";
+
+  const scale = () => cover * zoom;
+  const clamp = () => {
+    const w = bitmap.width * scale(), h = bitmap.height * scale();
+    const mx = Math.max(0, (w - FW) / 2), my = Math.max(0, (h - FH) / 2);
+    ox = Math.min(mx, Math.max(-mx, ox)); oy = Math.min(my, Math.max(-my, oy));
+  };
+  const draw = () => {
+    clamp();
+    const w = bitmap.width * scale(), h = bitmap.height * scale();
+    img.style.width = w + "px"; img.style.height = h + "px";
+    img.style.left = (FW - w) / 2 + ox + "px"; img.style.top = (FH - h) / 2 + oy + "px";
+  };
+  const setZoom = (z) => { zoom = Math.min(4, Math.max(1, z)); slider.value = String(zoom); draw(); };
+  draw();
+
+  // Dragging and pinching, with any pointer.
+  const pointers = new Map();
+  let pinch = null;
+  frame.addEventListener("pointerdown", (e) => { frame.setPointerCapture(e.pointerId); pointers.set(e.pointerId, [e.clientX, e.clientY]); e.preventDefault(); });
+  frame.addEventListener("pointermove", (e) => {
+    const last = pointers.get(e.pointerId);
+    if (!last) return;
+    pointers.set(e.pointerId, [e.clientX, e.clientY]);
+    if (pointers.size === 2) {
+      const [a, b] = [...pointers.values()];
+      const d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+      if (pinch) setZoom(zoom * d / pinch);
+      pinch = d;
+    } else {
+      ox += e.clientX - last[0]; oy += e.clientY - last[1]; draw();
+    }
+  });
+  const up = (e) => { pointers.delete(e.pointerId); if (pointers.size < 2) pinch = null; };
+  frame.addEventListener("pointerup", up);
+  frame.addEventListener("pointercancel", up);
+  frame.addEventListener("wheel", (e) => { e.preventDefault(); setZoom(zoom * (e.deltaY < 0 ? 1.08 : 1 / 1.08)); }, { passive: false });
+  slider.addEventListener("input", () => setZoom(Number(slider.value)));
+  // Arrow keys move it, for keyboards.
+  frame.tabIndex = 0;
+  frame.setAttribute("aria-label", "Photo position: arrow keys move it");
+  frame.addEventListener("keydown", (e) => {
+    const step = 10, moves = { ArrowLeft: [step, 0], ArrowRight: [-step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] };
+    if (moves[e.key]) { ox += moves[e.key][0]; oy += moves[e.key][1]; draw(); e.preventDefault(); }
+  });
+
+  const result = await new Promise((resolve) => {
+    const close = (v) => { scrim.remove(); box.remove(); URL.revokeObjectURL(url); document.removeEventListener("keydown", esc, true); resolve(v); };
+    const esc = (e) => { if (e.key === "Escape") { e.stopPropagation(); close(null); } };
+    document.addEventListener("keydown", esc, true);
+    cancel.onclick = () => close(null);
+    scrim.onclick = () => close(null);
+    done.onclick = () => {
+      // The frame's area, in the picture's own pixels.
+      const s = scale(), w = bitmap.width * s, h = bitmap.height * s;
+      const left = (FW - w) / 2 + ox, top = (FH - h) / 2 + oy;
+      close({ x: -left / s, y: -top / s, w: FW / s, h: FH / s });
+    };
+    done.focus();
+  });
+  if (!result) return null;
+  const outW = Math.min(1080, Math.round(result.w)), outH = Math.round(outW * 5 / 4);
   const canvas = document.createElement("canvas");
   canvas.width = outW; canvas.height = outH;
-  canvas.getContext("2d").drawImage(bitmap, x, y, w, h, 0, 0, outW, outH);
+  canvas.getContext("2d").drawImage(bitmap, result.x, result.y, result.w, result.h, 0, 0, outW, outH);
   const blob = await new Promise((r) => canvas.toBlob(r, "image/jpeg", 0.88));
   return new Uint8Array(await blob.arrayBuffer());
 }
@@ -117,6 +200,30 @@ export function onVisibilityChange(callback) {
 }
 
 export function isVisible() { return document.visibilityState === "visible"; }
+
+// --- Birthday reminders --------------------------------------------------------------------------
+
+export function notificationsAllowed() {
+  return typeof Notification !== "undefined" && Notification.permission === "granted";
+}
+
+/** Asks to show notifications (call from a tap). Resolves to true if allowed. */
+export async function askNotifications() {
+  if (typeof Notification === "undefined") return false;
+  if (Notification.permission === "granted") return true;
+  try { return (await Notification.requestPermission()) === "granted"; } catch (_) { return false; }
+}
+
+/** Shows a notification: through the offline worker where there is one (Chrome on Android
+ * allows no other way), otherwise directly. */
+export function notify(title, body) {
+  const options = { body, icon: "/memi.png", badge: "/memi.png" };
+  if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+    navigator.serviceWorker.ready.then((r) => r.showNotification(title, options)).catch(() => {});
+  } else {
+    try { new Notification(title, options); } catch (_) {}
+  }
+}
 
 export function copyText(text) {
   if (navigator.clipboard) navigator.clipboard.writeText(text).catch(() => {});

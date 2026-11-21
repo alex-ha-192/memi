@@ -229,3 +229,14 @@ textarea { resize: vertical; }
 .menu .tone { width: 30px; height: 30px; border-radius: 50%; border: 1px solid; padding: 0; display: grid; place-items: center; cursor: pointer; }
 .menu .tone.picked { border-width: 2.5px; }
 .menu .tone:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+/* Placing a photo in its 4:5 frame (web/src/glue.js cropInteractive). */
+.crop-scrim { z-index: 30; }
+.crop-box { position: fixed; z-index: 31; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(340px, calc(100vw - 24px)); background: var(--sheet); border-radius: 28px; padding: 20px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 18px 48px rgba(0,0,0,.25); }
+.crop-box h2 { margin: 0; font-size: 20px; }
+.crop-frame { position: relative; width: 260px; height: 325px; margin: 0 auto; overflow: hidden; border-radius: 22px; background: var(--track); touch-action: none; cursor: grab; }
+.crop-frame:active { cursor: grabbing; }
+.crop-frame:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.crop-frame img { position: absolute; max-width: none; user-select: none; -webkit-user-drag: none; pointer-events: none; }
+.crop-zoom { display: flex; align-items: center; gap: 10px; }
+.crop-zoom input { flex: 1; accent-color: var(--ink); }

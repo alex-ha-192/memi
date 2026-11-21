@@ -21,11 +21,16 @@ pub struct Settings {
     pub fresh_collapsed: bool,
     /// The first-launch questions are answered (or were skipped: this browser already had people or sync).
     pub welcomed: bool,
+    /// Birthday reminders: days before each birthday to remind (0 = on the day). Shown while the
+    /// tab is open, as on desktop while the app is open.
+    pub birthday_reminders: Vec<i64>,
+    /// Reminders already shown ("uid:date:days").
+    pub reminded: Vec<String>,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { scheme: "Bento".into(), appearance: "system".into(), fresh_collapsed: false, welcomed: false }
+        Settings { scheme: "Bento".into(), appearance: "system".into(), fresh_collapsed: false, welcomed: false, birthday_reminders: vec![], reminded: vec![] }
     }
 }
 
@@ -173,6 +178,23 @@ impl App {
         self.settings.update(f);
         let json = self.settings.with_untracked(|s| serde_json::to_string(s).unwrap_or_default());
         spawn_local(async move { let _ = js::idb_set_text("settings", &json).await; });
+    }
+
+    /// Shows any birthday reminders that are due and haven't been shown in this browser yet.
+    pub fn check_reminders(self) {
+        let days = self.settings.with_untracked(|s| s.birthday_reminders.clone());
+        if days.is_empty() || !js::notifications_allowed() { return; }
+        let due = self.peek(|d| memi_engine::core::insights::reminders_due(&d.snap.people, &d.snap.notes, &d.snap.collections, memi_engine::core::dates::today(), &days));
+        let shown = self.settings.with_untracked(|s| s.reminded.clone());
+        let new: Vec<_> = due.into_iter().filter(|r| !shown.contains(&r.key)).collect();
+        if new.is_empty() { return; }
+        for r in &new { js::notify(&r.title, &r.body); }
+        self.update_settings(|s| {
+            s.reminded.extend(new.into_iter().map(|r| r.key));
+            // Only recent ones matter; each key includes its date.
+            let extra = s.reminded.len().saturating_sub(100);
+            s.reminded.drain(..extra);
+        });
     }
 
     pub fn show_toast(self, message: impl Into<String>, undo: Option<Undo>) {

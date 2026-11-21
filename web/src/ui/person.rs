@@ -72,7 +72,7 @@ fn Person(p: Person) -> impl IntoView {
                 </div>
             </div>
 
-            <div class="section-head"><h3>"Categories"</h3><span class="caption muted">"click to add · drag to reorder"</span></div>
+            <div class="section-head"><h3>"Categories"</h3><span class="caption muted">"tap to add · ⋯ for more"</span></div>
             <div class="tiles">
                 {cats.into_iter().map(|c| category_tile(&p, c, &open, today)).collect_view()}
                 <button class="tile new" on:click=move |_| a.overlay.set(Some(Overlay::EditCategory { person: u_new.clone(), collection: None }))>"+ New category"</button>

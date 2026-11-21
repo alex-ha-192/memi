@@ -225,10 +225,17 @@ fun PersonEditorSheet(
                 Text("You'll crop it next.", style = BentoType.caption, color = colors.muted)
                 if (photo != null) {
                     Spacer(Modifier.height(8.dp))
-                    Box(
-                        Modifier.clip(RoundedCornerShape(12.dp)).background(colors.track)
-                            .clickable(role = Role.Button) { recrop() }.padding(horizontal = 12.dp, vertical = 8.dp)
-                    ) { Text("Adjust crop", style = BentoType.tag, color = colors.ink) }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(
+                            Modifier.clip(RoundedCornerShape(12.dp)).background(colors.track)
+                                .clickable(role = Role.Button) { recrop() }.padding(horizontal = 12.dp, vertical = 8.dp)
+                        ) { Text("Adjust crop", style = BentoType.tag, color = colors.ink) }
+                        // The old file is cleaned up on save, as when the photo is changed.
+                        Box(
+                            Modifier.clip(RoundedCornerShape(12.dp)).background(colors.track)
+                                .clickable(role = Role.Button) { photo = null }.padding(horizontal = 12.dp, vertical = 8.dp)
+                        ) { Text("Remove photo", style = BentoType.tag, color = colors.ink) }
+                    }
                 }
             }
         }

@@ -23,8 +23,8 @@ extern "C" {
     #[wasm_bindgen(js_name = gisRevoke)]
     pub fn gis_revoke(token: &str);
 
-    #[wasm_bindgen(js_name = cropPhoto)]
-    fn crop_photo_raw(file: &web_sys::File) -> js_sys::Promise;
+    #[wasm_bindgen(js_name = cropInteractive)]
+    fn crop_interactive_raw(file: &web_sys::File) -> js_sys::Promise;
 
     #[wasm_bindgen(js_name = systemDark)]
     pub fn system_dark() -> bool;
@@ -34,6 +34,11 @@ extern "C" {
     pub fn on_visibility_change(callback: &Closure<dyn FnMut(bool)>);
     #[wasm_bindgen(js_name = isVisible)]
     pub fn is_visible() -> bool;
+    #[wasm_bindgen(js_name = notificationsAllowed)]
+    pub fn notifications_allowed() -> bool;
+    #[wasm_bindgen(js_name = askNotifications)]
+    fn ask_notifications_raw() -> js_sys::Promise;
+    pub fn notify(title: &str, body: &str);
     #[wasm_bindgen(js_name = copyText)]
     pub fn copy_text(text: &str);
     #[wasm_bindgen(js_name = deviceLabel)]
@@ -49,6 +54,11 @@ pub async fn idb_get_bytes(key: &str) -> Option<Vec<u8>> {
     let v = JsFuture::from(idb_get_raw(key)).await.ok()?;
     if v.is_undefined() || v.is_null() { return None; }
     Some(js_sys::Uint8Array::new(&v).to_vec())
+}
+
+/// Asks to show notifications (from a tap). True if allowed.
+pub async fn ask_notifications() -> bool {
+    JsFuture::from(ask_notifications_raw()).await.ok().and_then(|v| v.as_bool()).unwrap_or(false)
 }
 
 pub async fn idb_get_text(key: &str) -> Option<String> {
@@ -89,9 +99,11 @@ pub async fn load_gis() -> bool {
     JsFuture::from(load_gis_raw()).await.is_ok()
 }
 
-pub async fn crop_photo(file: &web_sys::File) -> anyhow::Result<Vec<u8>> {
-    let v = JsFuture::from(crop_photo_raw(file)).await.map_err(err)?;
-    Ok(js_sys::Uint8Array::new(&v).to_vec())
+/// Lets the person place the picture in the 4:5 frame. None if they cancel.
+pub async fn crop_interactive(file: &web_sys::File) -> anyhow::Result<Option<Vec<u8>>> {
+    let v = JsFuture::from(crop_interactive_raw(file)).await.map_err(err)?;
+    if v.is_null() || v.is_undefined() { return Ok(None); }
+    Ok(Some(js_sys::Uint8Array::new(&v).to_vec()))
 }
 
 /// A URL the page can show `bytes` (a JPEG) from.

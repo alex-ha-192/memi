@@ -85,7 +85,7 @@ fn CategorySheet(person: String, collection: String) -> impl IntoView {
                 };
                 note_row(n, None, sub, None, true)
             }).collect_view()}
-            <p class="caption muted">"Click to edit, drag to reorder. Use ⋯ or right-click to mark done, a hit or a miss."</p>
+            <p class="caption muted">"Tap or click to edit. ⋯ marks it done, a hit or a miss, or moves it."</p>
         }.into_any()
     };
     view! {
@@ -161,8 +161,10 @@ fn PersonEditor(uid: Option<String>) -> impl IntoView {
         let Some(f) = input.files().and_then(|l| l.get(0)) else { return };
         busy.set(true);
         spawn_local(async move {
-            match js::crop_photo(&f).await {
-                Ok(bytes) => {
+            input_clear(file);
+            match js::crop_interactive(&f).await {
+                Ok(None) => {}
+                Ok(Some(bytes)) => {
                     if let Some(old) = preview.get_untracked() { js::revoke_url(&old); }
                     preview.set(js::blob_url(&bytes));
                     photo.set(Some(Some(bytes)));
@@ -172,6 +174,7 @@ fn PersonEditor(uid: Option<String>) -> impl IntoView {
             busy.set(false);
         });
     };
+    fn input_clear(file: NodeRef<leptos::html::Input>) { if let Some(i) = file.get_untracked() { i.set_value(""); } }
     let base_save = base.clone();
     let save = move |_| {
         let n = name.get_untracked();

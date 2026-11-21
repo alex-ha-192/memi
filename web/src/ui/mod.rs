@@ -44,6 +44,14 @@ pub fn Root() -> impl IntoView {
     });
     js::on_visibility_change(&vis_cb);
     vis_cb.forget();
+    // Birthday reminders: once what's kept in this browser has loaded, then every hour while the tab is open.
+    spawn_local(async move {
+        gloo_timers::future::TimeoutFuture::new(3_000).await;
+        loop {
+            a.check_reminders();
+            gloo_timers::future::TimeoutFuture::new(60 * 60 * 1000).await;
+        }
+    });
     let _ = window_event_listener(leptos::ev::resize, move |_| a.width.set(crate::state::window_width()));
     let _ = window_event_listener(leptos::ev::keydown, move |e| {
         if e.key() == "Escape" {
@@ -88,6 +96,25 @@ fn ThemePanel() -> impl IntoView {
             <Icon name=icon size=16. />{label}
         </button>
     };
+    // Turning one on asks to show notifications (it's a tap, which browsers require).
+    let reminder = move |days: i64, label: &'static str| view! {
+        <button class="seg" class:on=move || a.settings.with(|s| s.birthday_reminders.contains(&days)) aria-pressed=move || a.settings.with(|s| s.birthday_reminders.contains(&days)).to_string()
+            on:click=move |_| {
+                let on = a.settings.with_untracked(|s| s.birthday_reminders.contains(&days));
+                if on {
+                    a.update_settings(|s| s.birthday_reminders.retain(|d| *d != days));
+                    return;
+                }
+                spawn_local(async move {
+                    if js::ask_notifications().await {
+                        a.update_settings(|s| { s.birthday_reminders.push(days); s.birthday_reminders.sort(); });
+                        a.check_reminders();
+                    } else {
+                        a.show_toast("Your browser isn't allowing Memi's notifications. Allow them in the site settings to get reminders.", None);
+                    }
+                });
+            }>{label}</button>
+    };
     let sync_detail = move || {
         let (enabled, account) = a.memi.with(|m| (m.sync.enabled, m.sync.account.clone()));
         match (enabled, a.memi.with(|m| m.status.problem.is_some())) {
@@ -126,6 +153,13 @@ fn ThemePanel() -> impl IntoView {
                     {mode("light", "Light", "sun")}
                     {mode("dark", "Dark", "moon")}
                     {mode("system", "System", "monitor")}
+                </div>
+                <div class="row between baseline"><b>"Birthday reminders"</b>
+                    <span class="caption muted">{move || if a.settings.with(|s| s.birthday_reminders.is_empty()) { "Off" } else { "While this tab is open" }}</span></div>
+                <div class="segments">
+                    {reminder(0, "On the day")}
+                    {reminder(1, "Day before")}
+                    {reminder(7, "Week before")}
                 </div>
                 <button class="card-row" on:click=move |_| { a.theme_open.set(false); a.overlay.set(Some(Overlay::Sync)); }>
                     <Icon name="cloud" size=19. />
