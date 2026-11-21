@@ -115,6 +115,9 @@ class AppViewModel(private val repo: Repository, private val prefs: ThemePrefs) 
 
     fun movePerson(person: Person, delta: Int) = viewModelScope.launch { repo.movePerson(person, delta) }
 
+    /** Gives someone another of the theme's colours (it follows them to every device). */
+    fun setTone(person: Person, tone: Int) = viewModelScope.launch { repo.updatePerson(person.copy(toneIndex = tone)) }
+
 
     suspend fun loadPhotoFile(path: String): ImageBitmap? = PlatformPhotos.loadFile(path)
 

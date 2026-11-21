@@ -75,6 +75,8 @@ class PersonCallbacks(
     val onOpenCollection: (NoteCollection) -> Unit,
     val onCollectionMenu: (NoteCollection, CollectionAction) -> Unit,
     val onNewCollection: () -> Unit,
+    /** Gives them another of the theme's eight colours. */
+    val onTone: (Int) -> Unit = {},
     /** Drag and drop: put the first category in the second one's place. */
     val onPlaceCollection: (Long, Long) -> Unit = { _, _ -> },
 )
@@ -130,7 +132,7 @@ private fun PhonePerson(
                     Spacer(Modifier.height(4.dp))
                     Text(person.name, style = BentoType.display, color = colors.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
-                PersonMenu(personMenu, { personMenu = false }, callbacks)
+                PersonMenu(personMenu, { personMenu = false }, callbacks, person.toneIndex)
             }
         }
         item(key = "hero") {
@@ -215,16 +217,17 @@ private fun PhotoCard(person: Person, callbacks: PersonCallbacks, modifier: Modi
             OneLine(person.name, BentoType.section.copy(letterSpacing = BentoType.tileTitle.letterSpacing), colors.ink)
             if (person.relationship.isNotBlank()) OneLine(person.relationship, BentoType.caption, colors.muted)
         }
-        PersonMenu(menu, { menu = false }, callbacks)
+        PersonMenu(menu, { menu = false }, callbacks, person.toneIndex)
     }
 }
 
 @Composable
-private fun PersonMenu(expanded: Boolean, onDismiss: () -> Unit, callbacks: PersonCallbacks) {
+private fun PersonMenu(expanded: Boolean, onDismiss: () -> Unit, callbacks: PersonCallbacks, tone: Int) {
     val colors = Bento.colors
     BentoMenu(expanded, onDismiss) {
         Column(Modifier.padding(horizontal = 8.dp)) {
             MenuRow("Edit", Icons.Rounded.Edit) { onDismiss(); callbacks.onEditPerson() }
+            ToneChoice(tone) { onDismiss(); if (it != tone) callbacks.onTone(it) }
             MenuRow("Remove", Icons.Rounded.DeleteOutline, tint = colors.danger) { onDismiss(); callbacks.onRemovePerson() }
         }
     }

@@ -12,7 +12,7 @@ use crate::state::{app, App, Confirm, MenuKind, Overlay};
 use crate::{js, sync};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use memi_engine::core::model::{outcome, status};
+use memi_engine::core::model::{outcome, status, Person};
 use wasm_bindgen::prelude::*;
 use widgets::Icon;
 
@@ -216,6 +216,27 @@ fn MenuView() -> impl IntoView {
                 view! {
                     {item("Edit", false, Box::new(move || a.overlay.set(Some(Overlay::EditPerson(Some(u1.clone()))))))}
                     {item(if pinned { "Unpin" } else { "Pin to top" }, false, Box::new(move || a.change(|d| d.set_pinned(&u2, !pinned))))}
+                    // The theme's eight person colours, as the cards they make, with theirs ringed.
+                    <div class="tones" role="radiogroup" aria-label="Colour">
+                        <span class="caption muted">"Colour"</span>
+                        <div class="tone-grid">
+                            {(0..8).map(|i| {
+                                let picked = p.tone_index.rem_euclid(8) == i;
+                                let who = p.clone();
+                                view! {
+                                    <button class="tone" class:picked=picked role="radio" aria-checked=picked.to_string()
+                                        aria-label=format!("Colour {} of 8", i + 1)
+                                        style=format!("background:var(--pcard{i});border-color:{}", if picked { "var(--ink)".to_string() } else { format!("color-mix(in srgb, var(--pink{i}) 35%, transparent)") })
+                                        on:click=move |_| {
+                                            a.menu.set(None);
+                                            if !picked { let changed = Person { tone_index: i, ..who.clone() }; a.change(|d| d.update_person(changed)); }
+                                        }>
+                                        {picked.then(|| view! { <span style=format!("color:var(--pink{i})")><Icon name="check" size=15. /></span> })}
+                                    </button>
+                                }
+                            }).collect_view()}
+                        </div>
+                    </div>
                     {item("Remove", true, Box::new(move || a.overlay.set(Some(Overlay::Confirm(Confirm::RemovePerson(u3.clone()))))))}
                 }.into_any()
             }

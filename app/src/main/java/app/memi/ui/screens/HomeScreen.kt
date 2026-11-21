@@ -9,6 +9,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material3.Icon
@@ -66,6 +67,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -102,6 +104,8 @@ class PeopleActions(
     val onMove: (Person, Int) -> Unit,
     val onEdit: (Person) -> Unit,
     val onRemove: (Person) -> Unit,
+    /** Gives them another of the theme's eight colours. */
+    val onTone: (Person, Int) -> Unit = { _, _ -> },
     /** Drag and drop: put the first person in the second one's place. */
     val onPlace: (Long, Long) -> Unit = { _, _ -> },
 )
@@ -559,7 +563,36 @@ private fun PersonMenu(expanded: Boolean, onDismiss: () -> Unit, p: Person, all:
             if (index > 0) MenuRow("Move earlier", Icons.AutoMirrored.Rounded.ArrowBack) { onDismiss(); actions.onMove(p, -1) }
             if (index in 0 until group.lastIndex) MenuRow("Move later", Icons.AutoMirrored.Rounded.ArrowForward) { onDismiss(); actions.onMove(p, 1) }
             MenuRow("Edit", Icons.Rounded.Edit) { onDismiss(); actions.onEdit(p) }
+            ToneChoice(p.toneIndex) { onDismiss(); if (it != p.toneIndex) actions.onTone(p, it) }
             MenuRow("Remove", Icons.Rounded.DeleteOutline, tint = colors.danger) { onDismiss(); actions.onRemove(p) }
+        }
+    }
+}
+
+/** The theme's eight person colours, as the cards they make, with the current one ringed. */
+@Composable
+internal fun ToneChoice(current: Int, onPick: (Int) -> Unit) {
+    val colors = Bento.colors
+    val now = current.mod(8)
+    Column(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+        Text("Colour", style = BentoType.caption, color = colors.muted)
+        androidx.compose.foundation.layout.Spacer(Modifier.height(8.dp))
+        for (row in 0 until 2) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(bottom = 10.dp)) {
+                for (i in row * 4 until row * 4 + 4) {
+                    val picked = i == now
+                    Box(
+                        Modifier.size(36.dp).clip(androidx.compose.foundation.shape.CircleShape)
+                            .background(colors.personCard(i))
+                            .border(if (picked) 2.5.dp else 1.dp, if (picked) colors.ink else colors.personInk(i).copy(alpha = 0.35f), androidx.compose.foundation.shape.CircleShape)
+                            .clickable(role = androidx.compose.ui.semantics.Role.RadioButton, onClickLabel = "Use this colour") { onPick(i) }
+                            .semantics { contentDescription = "Colour ${i + 1} of 8"; selected = picked },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (picked) Icon(Icons.Rounded.Check, contentDescription = null, tint = colors.personInk(i), modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
         }
     }
 }

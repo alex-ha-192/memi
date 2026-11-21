@@ -2,6 +2,14 @@
 
 Every release of Memi, newest first. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/). Releases 0.1 to 0.4 came before this repository; their entries are reconstructed from the project's notes and have no exact dates.
 
+## [1.0.1] — 2026-11-21
+
+### Added
+- Choose each person's colour: their menu (press and hold on Android, right-click or ⋯ elsewhere) now has a Colour row with your theme's eight person colours, shown as the cards they make. The choice follows them to your other devices.
+
+### Fixed
+- Android: pressing and holding a person, category or note to open its menu also opened it as if tapped, whenever your finger stayed still.
+
 ## [1.0.0] — 2026-11-21
 
 The first full release. Sync can now go to your own WebDAV server or a folder as well as Google Drive, you can keep a backup file, the web app works offline, and people get their own colour.
@@ -127,7 +135,8 @@ A new device now asks whether you've used Memi before, Memi has a brighter icon 
 ### Added
 - The first Android app: people, with their photo and birthday, and gift ideas, plans and notes for each, marked done as a hit or a miss.
 
-[Unreleased]: https://github.com/alex-ha-192/memi/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/alex-ha-192/memi/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/alex-ha-192/memi/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/alex-ha-192/memi/compare/v0.6.3...v1.0.0
 [0.6.3]: https://github.com/alex-ha-192/memi/compare/v0.6.2...v0.6.3
 [0.6.2]: https://github.com/alex-ha-192/memi/compare/v0.6.0...v0.6.2

@@ -184,12 +184,14 @@ private fun Content(vm: AppViewModel) {
             onMove = { p, d -> vm.movePerson(p, d) },
             onEdit = { dialog = Dialog.EditPerson(it) },
             onRemove = { dialog = Dialog.RemovePerson(it) },
+            onTone = { p, tone -> vm.setTone(p, tone) },
             onPlace = { a, b -> vm.placePerson(a, b) },
         )
     }
     fun callbacksFor(person: Person) = PersonCallbacks(
         onEditPerson = { dialog = Dialog.EditPerson(person) },
         onRemovePerson = { dialog = Dialog.RemovePerson(person) },
+        onTone = { vm.setTone(person, it) },
         onOpenCollection = { c -> dialog = Dialog.Collection(person.id, c.id) },
         onCollectionMenu = { c, action ->
             when (action) {

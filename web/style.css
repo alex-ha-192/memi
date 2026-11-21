@@ -222,3 +222,10 @@ textarea { resize: vertical; }
 .sync-chip.synced { background: var(--tile1); color: var(--tileink1); }
 .sync-chip.syncing { background: var(--tile3); color: var(--tileink3); }
 .sync-chip.signin { background: var(--tile0); color: var(--tileink0); }
+
+/* A person's colour, in their menu. */
+.menu .tones { padding: 8px 12px 6px; display: flex; flex-direction: column; gap: 8px; }
+.menu .tone-grid { display: grid; grid-template-columns: repeat(4, 30px); gap: 8px; }
+.menu .tone { width: 30px; height: 30px; border-radius: 50%; border: 1px solid; padding: 0; display: grid; place-items: center; cursor: pointer; }
+.menu .tone.picked { border-width: 2.5px; }
+.menu .tone:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }

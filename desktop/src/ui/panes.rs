@@ -176,6 +176,34 @@ impl MemiView {
                     .on_click(cx.listener(move |this, _, _, cx| this.answer_join(deny_id.clone(), false, cx)))))
     }
 
+    /// The theme's eight person colours, as the cards they make, with theirs ringed.
+    fn tone_choice(&self, p: &Person, c: &Colors, cx: &mut Context<Self>) -> Div {
+        let now = p.tone_index.rem_euclid(8);
+        let mut rows = div().flex().flex_col().gap(px(8.)).px(px(12.)).py(px(8.)).child(caption("Colour", c.muted));
+        for r in 0..2 {
+            let mut line = div().flex().gap(px(8.));
+            for i in r * 4..r * 4 + 4 {
+                let picked = i == now;
+                let who = p.clone();
+                line = line.child(div().id(("tone", i as usize)).role(Role::Button).aria_label(format!("Colour {} of 8", i + 1)).aria_selected(picked)
+                    .size(px(30.)).rounded_full().bg(c.person_card(i)).cursor_pointer()
+                    .border(px(if picked { 2.5 } else { 1. })).border_color(if picked { c.ink } else { Hsla { a: 0.35, ..c.person_ink(i) } })
+                    .flex().items_center().justify_center()
+                    .when(picked, |d| d.child(icon("check", 15., c.person_ink(i))))
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.menu = None;
+                        if who.tone_index.rem_euclid(8) != i {
+                            let changed = Person { tone_index: i, ..who.clone() };
+                            this.change(cx, |s| s.update_person(&changed));
+                        }
+                        cx.notify();
+                    })));
+            }
+            rows = rows.child(line);
+        }
+        rows
+    }
+
     /// Sync is on but they haven't said they've kept the recovery key anywhere.
     fn key_nudge_card(&self, c: &Colors, cx: &mut Context<Self>) -> Stateful<Div> {
         div().id("key-nudge").flex_none().rounded(px(24.)).bg(c.card).border_1().border_color(c.line).p(px(18.)).flex().flex_col().gap(px(8.))
@@ -562,6 +590,7 @@ impl MemiView {
                         .on_click(cx.listener(move |this, _, _, cx| { this.menu = None; this.change(cx, |s| s.move_person(d.id, 1)); })))
                     .child(row("edit", "Edit", "pencil", false)
                         .on_click(cx.listener(move |this, _, window, cx| this.open_person_editor(Some(e.clone()), window, cx))))
+                    .child(self.tone_choice(&p, c, cx))
                     .child(row("remove", "Remove", "trash-2", true)
                         .on_click(cx.listener(move |this, _, _, cx| {
                             this.menu = None;

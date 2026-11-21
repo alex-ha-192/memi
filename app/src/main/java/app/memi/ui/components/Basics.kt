@@ -120,8 +120,10 @@ fun Modifier.pressable(
     val hasMenu = onMenu != null
     val canDrag = reorder != null
     val haptics = LocalHapticFeedback.current
-    // When this gesture started, and when it became a long press: a long press isn't also a tap.
-    val times = remember { LongArray(2) }
+    // Whether this gesture became a long press: a long press isn't also a tap. (Comparing the times
+    // of the press and the long press doesn't work: holding perfectly still sends no new events,
+    // so the long press carries the press's own time.)
+    val held = remember { BooleanArray(1) }
     return this
         .pointerInput(hasMenu) {
             if (!hasMenu) return@pointerInput
@@ -141,9 +143,9 @@ fun Modifier.pressable(
                 .pointerInput(Unit) {
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
-                        times[0] = down.uptimeMillis
+                        held[0] = false
                         val long = awaitLongPressOrCancellation(down.id) ?: return@awaitEachGesture
-                        times[1] = long.uptimeMillis
+                        held[0] = true
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                         val h = handle ?: return@awaitEachGesture
                         h.start(long.position)
@@ -171,7 +173,7 @@ fun Modifier.pressable(
             interactionSource = interaction,
             indication = null,
             role = Role.Button,
-            onClick = { if (!(canDrag && times[1] > times[0])) click?.invoke() },
+            onClick = { if (!(canDrag && held[0])) click?.invoke() },
             onLongClick = if (hasMenu && !canDrag) ({ menu?.invoke() }) else null,
         )
 }
