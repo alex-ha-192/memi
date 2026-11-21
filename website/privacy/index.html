@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Privacy policy · Memi</title>
-  <meta name="description" content="Memi stores no user data. What the app keeps on your devices, how optional sync works, and what Google can see.">
+  <meta name="description" content="Memi stores no user data. What the app keeps on your devices, how optional sync works, and what the place you sync to can see.">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self'; style-src 'self'; script-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
   <meta name="referrer" content="no-referrer">
   <meta name="theme-color" content="#F4F3F8" media="(prefers-color-scheme: light)">
@@ -34,7 +34,7 @@
       <p class="updated">Last updated 21 November 2026</p>
 
       <div class="summary">
-        <p>We store none of what you keep in Memi. Memi has no servers, no accounts, no analytics, no crash reporting and no ads. What you write stays on your own devices, plus your own Google Drive if you turn on sync, and that copy is encrypted so only your devices can read it.</p>
+        <p>We store none of what you keep in Memi. Memi has no servers, no accounts, no analytics, no crash reporting and no ads. What you write stays on your own devices, plus one place you choose if you turn on sync (your Google Drive, a WebDAV server such as Nextcloud, or a folder another app keeps in step), and that copy is encrypted so only your devices can read it.</p>
       </div>
 
       <h2>Who we are</h2>
@@ -51,17 +51,19 @@
       <p>None of this is sent to us. We don't have a server to send it to.</p>
 
       <h2>Sync (optional, off until you turn it on)</h2>
-      <p>Sync keeps your phone, tablet and computers in step by storing one file in your own Google Drive. This is how it works:</p>
+      <p>Sync keeps your phone, tablet and computers in step by storing one encrypted file in a place you choose: your own Google Drive, a WebDAV server (such as Nextcloud, ownCloud or a NAS), or a folder that another app keeps the same on each device (such as Syncthing or Dropbox). This is how it works:</p>
       <ul>
         <li>The first device to turn on sync creates a random 256-bit key. Before anything leaves your device, it's compressed and encrypted with that key (AES-256-GCM).</li>
-        <li>The encrypted file goes in Google Drive's hidden app data folder. It doesn't appear among your Drive files, and Memi can't see your other files. We only ask Google for access to that one folder (the <code>drive.appdata</code> permission).</li>
-        <li>The key never leaves your devices in a readable form. On Android, Google's Block Store backs it up end-to-end encrypted with your screen lock, so a new phone set up from your old one can pick it up. To add another device, the new device makes a one-off code and shows it (and leaves it in the same hidden folder as a request); a device that already has the key encrypts it for that one device and passes it through the hidden folder, where the new device collects and deletes it. Both devices show the same six-digit code so you can check before you allow it. You can also copy the recovery key by hand.</li>
+        <li>With Google Drive, the encrypted file goes in Drive's hidden app data folder. It doesn't appear among your Drive files, and Memi can't see your other files. We only ask Google for access to that one folder (the <code>drive.appdata</code> permission).</li>
+        <li>With WebDAV, the encrypted file goes in the folder you give, on the server you give, signed in with the user name and password you give (an app password, on Nextcloud). The password is kept on your device only, encrypted where the system allows it: with the Android Keystore, in your computer's keyring, or in the web app's storage in your browser. In a browser, the server has to allow requests from memi.yourmemi.app.</li>
+        <li>With a folder, Memi writes its encrypted file in the folder you pick and reads only its own files there. On Android, the system's folder picker gives Memi access to that one folder. Moving the file between your devices is the job of whatever keeps the folder in step, under its own terms.</li>
+        <li>The key never leaves your devices in a readable form. On Android, Google's Block Store backs it up end-to-end encrypted with your screen lock, so a new phone set up from your old one can pick it up. To add another device, the new device makes a one-off code and shows it (and leaves it in the same place as a request); a device that already has the key encrypts it for that one device and passes it through that place, where the new device collects and deletes it. Both devices show the same six-digit code so you can check before you allow it. You can also copy the recovery key by hand.</li>
       </ul>
-      <p>Because the file is encrypted, Google can't read your notes, names or photos. Google can see that the file exists, its size, when it changed, and which Google account it belongs to. The app shows you the email address of the account you connected, and only on your own device.</p>
+      <p>Because the file is encrypted, wherever it's kept can't read your notes, names or photos. Google, the WebDAV server's operator or the folder's sync service can see that the file exists, its size, when it changed, and which account it belongs to. The app shows you the account or folder you connected, and only on your own device.</p>
       <p>Memi's use and transfer of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements. In plain terms: the only thing the app does with your Google access is read and write its own encrypted file.</p>
 
       <h2>The web app</h2>
-      <p>memi.yourmemi.app is the same app in your browser, made of static files served by Cloudflare. Everything you add is kept in that browser's own storage and nowhere else, unless you turn on sync, which works exactly as described above. Google's sign-in script is only loaded once you open Sync (or if sync is already on), so a browser that never uses sync never contacts Google. Google gives the web app access to its hidden Drive folder for about an hour at a time, so it may ask you to reconnect. Clearing the site's data in your browser removes everything the web app kept there.</p>
+      <p>memi.yourmemi.app is the same app in your browser, made of static files served by Cloudflare. Everything you add is kept in that browser's own storage and nowhere else, unless you turn on sync, which works exactly as described above (Google Drive or WebDAV; a browser can't keep a folder). Google's sign-in script is only loaded once you choose Google in Sync (or if sync through Google is already on), so a browser that never uses it never contacts Google. Your browser keeps a copy of the app's own files (not your notes) so it opens without a connection. Google gives the web app access to its hidden Drive folder for about an hour at a time, so it may ask you to reconnect. Clearing the site's data in your browser removes everything the web app kept there.</p>
 
       <h2>Google services the Android app uses</h2>
       <p>On Android, sync relies on parts of Google Play services that run on your phone:</p>
@@ -70,18 +72,21 @@
         <li><strong>Block Store</strong>, to back up the sync key end-to-end encrypted, as described above.</li>
         <li><strong>Google code scanner</strong>, only when you use Add a computer. It reads the QR code on your phone, and Google says it doesn't store the images or results. Like other parts of Google's ML Kit, it may send Google basic device information and performance diagnostics.</li>
       </ul>
-      <p>These are only used once you turn on sync, and they're covered by <a href="https://policies.google.com/privacy">Google's privacy policy</a>. If you never turn on sync, the app never contacts Google or anyone else.</p>
+      <p>These are only used once you turn on sync through Google, and they're covered by <a href="https://policies.google.com/privacy">Google's privacy policy</a>. If you never turn on sync, the app never contacts Google or anyone else. With WebDAV or a folder, it never contacts Google either.</p>
+
+      <h2>Backup files</h2>
+      <p>Settings › Backup file › Save a backup writes everything you keep in Memi, photos included, to a file you choose where to put. That file isn't encrypted, so keep it somewhere private. Opening a backup adds what's in it to what's already there; nothing is sent anywhere.</p>
 
       <h2>What we never do</h2>
       <ul>
         <li>No analytics, usage tracking or crash reporting, in the app or on this website.</li>
         <li>No advertising, and no advertising or tracking libraries.</li>
         <li>No selling, sharing or renting data. We don't have any to share.</li>
-        <li>No connections to anything except Google, and only for sync: <code>accounts.google.com</code>, <code>oauth2.googleapis.com</code> and <code>www.googleapis.com</code>.</li>
+        <li>No connections to anything except the place you sync to, and only for sync: Google (<code>accounts.google.com</code>, <code>oauth2.googleapis.com</code> and <code>www.googleapis.com</code>) or the WebDAV server you give.</li>
       </ul>
 
       <h2>Permissions</h2>
-      <p><strong>Android:</strong> internet access, used only for sync, and permission to check whether you're online (requested by the Google Play services libraries that sync uses; it can't see what you do online). If you turn on birthday reminders, the app asks to show notifications, and it's allowed to set its once-a-day check again after your phone restarts. The app doesn't ask for your camera, contacts, location, microphone or storage. Photos come through Android's photo picker, which only shares the one photo you pick.</p>
+      <p><strong>Android:</strong> internet access, used only for sync, and permission to check whether you're online (requested by the Google Play services libraries that sync uses; it can't see what you do online). If you turn on birthday reminders, the app asks to show notifications, and it's allowed to set its once-a-day check again after your phone restarts. The app doesn't ask for your camera, contacts, location, microphone or storage. Photos come through Android's photo picker, which only shares the one photo you pick; a sync folder and backup files go through the system's file and folder pickers, which only share what you pick.</p>
       <p><strong>Linux:</strong> the AppImage is a normal program running as your user. Its data is in <code>~/.local/share/yourmemi</code>, the sync key goes in your desktop's keyring, and photos come through your desktop's file chooser.</p>
       <p><strong>Windows:</strong> a normal desktop app installed just for your user account. Its data is in <code>%APPDATA%\YourMemi</code>.</p>
 
@@ -108,6 +113,8 @@
       <ul>
         <li><strong>On a device:</strong> remove a person from inside the app, or uninstall the app (on Android, clearing its storage does the same). In the web app, clear the site's data in your browser.</li>
         <li><strong>In Google Drive:</strong> open Google Drive's settings, choose Manage apps, find Your Memi (the name Google shows for Memi) and choose Delete hidden app data. Turning off sync in the app also stops it using Drive.</li>
+        <li><strong>On a WebDAV server or in a sync folder:</strong> delete the files whose names start with <code>memi-</code> from that folder.</li>
+        <li><strong>Backup files:</strong> delete them wherever you saved them.</li>
         <li><strong>Google access:</strong> you can remove Memi's access at any time from <a href="https://myaccount.google.com/connections">your Google account's connections page</a>.</li>
       </ul>
 
