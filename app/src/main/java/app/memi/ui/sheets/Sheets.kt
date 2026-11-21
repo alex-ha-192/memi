@@ -108,6 +108,7 @@ fun BentoField(
     singleLine: Boolean = true,
     keyboardType: KeyboardType = KeyboardType.Text,
     capitalization: KeyboardCapitalization = KeyboardCapitalization.Sentences,
+    password: Boolean = false,
 ) {
     val colors = Bento.colors
     Column(modifier) {
@@ -119,7 +120,8 @@ fun BentoField(
             minLines = if (singleLine) 1 else 3,
             textStyle = BentoType.input.copy(color = colors.ink),
             cursorBrush = SolidColor(colors.ink),
-            keyboardOptions = KeyboardOptions(capitalization = capitalization, keyboardType = keyboardType),
+            keyboardOptions = KeyboardOptions(capitalization = capitalization, keyboardType = if (password) KeyboardType.Password else keyboardType),
+            visualTransformation = if (password) androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
             modifier = Modifier.fillMaxWidth(),
             decorationBox = { inner ->
                 Box(

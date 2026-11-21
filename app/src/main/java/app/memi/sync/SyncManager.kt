@@ -5,6 +5,8 @@ import app.memi.engine.Engine
 import app.memi.engine.Host
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import app.memi.engine.MemiException
+import app.memi.engine.SyncProvider
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -58,6 +60,8 @@ class SyncManager(
         val joins: List<Join> = emptyList(),
         /** They've said the recovery key is kept somewhere safe. */
         val keySaved: Boolean = false,
+        /** Where sync goes. */
+        val provider: SyncProvider = SyncProvider.Google,
         /** The engine's view: sync works, the key isn't saved, and they haven't just said "Not now". */
         val wantsKeyNudge: Boolean = false,
     ) {
@@ -80,6 +84,7 @@ class SyncManager(
     val state: StateFlow<State> = _state.asStateFlow()
 
     init {
+        giveAccess()
         if (_state.value.enabled) scope.launch { _state.update { it.copy(keyFollows = platform.keys.followsToNewDevice()) } }
     }
 
@@ -104,6 +109,7 @@ class SyncManager(
             keyFollows = keyFollows,
             joins = s.joins.map { Join(it.fileId, it.device, it.confirm) },
             keySaved = s.sync.keySaved,
+            provider = engine.provider(),
             wantsKeyNudge = engine.wantsKeyNudge(System.currentTimeMillis()),
         )
     }
@@ -116,6 +122,21 @@ class SyncManager(
         if (asking != null && asking.id != pairingId) waitForKey(asking.id)
     }
 
+    /** Whether sync goes through Google (the only place that needs a sign-in token). */
+    private fun usesGoogle() = engine.provider() is SyncProvider.Google
+
+    /** What engine calls need: a Google token, or "" for WebDAV and folders (the engine has their access already). */
+    private suspend fun credential(): String? = if (usesGoogle()) platform.silentToken() else ""
+
+    /** Hands the engine the WebDAV password or folder access saved on this phone. */
+    private fun giveAccess() {
+        when (val p = engine.provider()) {
+            is SyncProvider.WebDav -> engine.setWebdavPassword(platform.webdavPassword)
+            is SyncProvider.Folder -> engine.setHostFolder(platform.folder(p.path))
+            is SyncProvider.Google -> {}
+        }
+    }
+
     /**
      * Runs one engine step with a Google token (Play services gives one without asking). If Google
      * turns it down, drops it and tries once more with a fresh one. False if there's no token.
@@ -123,11 +144,11 @@ class SyncManager(
     private suspend fun withToken(first: String? = null, step: Engine.(String) -> Unit): Boolean = withContext(Dispatchers.IO) {
         _state.update { it.copy(busy = true) }
         try {
-            var token = first ?: platform.silentToken()
+            var token = first ?: credential()
             if (token == null) { signInNeeded = true; return@withContext false }
             signInNeeded = false
             engine.step(token)
-            if (engine.needsSignIn()) {
+            if (engine.needsSignIn() && usesGoogle()) {
                 platform.forgetToken(token)
                 token = platform.silentToken() ?: run { signInNeeded = true; return@withContext false }
                 engine.clearProblem()
@@ -149,6 +170,34 @@ class SyncManager(
         if (_state.value.enabled) _state.update { it.copy(keyFollows = platform.keys.followsToNewDevice()) }
     }
 
+    /** Checks the WebDAV address and password, then turns sync on there. Returns what went wrong, or null. */
+    suspend fun connectWebdav(url: String, user: String, password: String): String? = mutex.withLock {
+        withContext(Dispatchers.IO) {
+            _state.update { it.copy(busy = true) }
+            try {
+                engine.connectWebdav(url, user, password)
+                platform.webdavPassword = password
+                signInNeeded = false
+                null
+            } catch (e: MemiException) {
+                e.message ?: "Couldn't connect"
+            } finally {
+                publish()
+            }
+        }.also { if (it == null && _state.value.enabled) _state.update { s -> s.copy(keyFollows = platform.keys.followsToNewDevice()) } }
+    }
+
+    /** Turns sync on through a folder picked with the system picker (permission already kept). */
+    suspend fun connectFolder(uri: String): String? = mutex.withLock {
+        val folder = platform.folder(uri) ?: return@withLock "Memi wasn't allowed to use that folder."
+        withContext(Dispatchers.IO) {
+            _state.update { it.copy(busy = true) }
+            try { engine.connectFolder(uri, folder); signInNeeded = false } finally { publish() }
+        }
+        if (_state.value.enabled) _state.update { it.copy(keyFollows = platform.keys.followsToNewDevice()) }
+        null
+    }
+
     /** True if [text] opens the backup in your account; sync is then on. */
     suspend fun useRecoveryKey(text: String): Boolean {
         var ok = false
@@ -168,7 +217,7 @@ class SyncManager(
             while (isActive && System.currentTimeMillis() < until) {
                 delay(3_000)
                 if (engine.status().asking?.id != id) return@launch
-                val token = platform.silentToken() ?: continue
+                val token = credential() ?: continue
                 if (runCatching { engine.checkPairing(token) }.getOrDefault(false)) {
                     pairingId = null
                     _state.update { it.copy(keyFollows = platform.keys.followsToNewDevice()) }
@@ -177,7 +226,7 @@ class SyncManager(
                 }
             }
             // The request has expired; the person can still type the recovery key.
-            if (isActive) { engine.cancelAsking(platform.silentToken()); publish() }
+            if (isActive) { engine.cancelAsking(credential()); publish() }
         }
     }
 
@@ -192,25 +241,25 @@ class SyncManager(
     /** Allow: sends this device's key to the one that asked, so only it can open it. */
     suspend fun approveJoin(fileId: String): String? = withContext(Dispatchers.IO) {
         if (engine.recoveryKey() == null) return@withContext "Turn on sync here first."
-        val token = platform.silentToken() ?: return@withContext "Sign in to Google again in Sync first."
+        val token = credential() ?: return@withContext "Sign in to Google again in Sync first."
         val result = runCatching { engine.answerJoin(token, fileId, true) }
         publish()
-        result.exceptionOrNull()?.let { "Couldn't reach Google Drive: ${it.message}" }
+        result.exceptionOrNull()?.let { "Couldn't send it: ${it.message}" }
     }
 
     /** Not mine: removes the request. */
     suspend fun declineJoin(fileId: String) = withContext(Dispatchers.IO) {
-        val token = platform.silentToken() ?: return@withContext
+        val token = credential() ?: return@withContext
         runCatching { engine.answerJoin(token, fileId, false) }
         publish()
     }
 
     /** On the phone: sends this phone's key to the computer whose QR code was scanned. */
     suspend fun sendKeyTo(code: String): String = withContext(Dispatchers.IO) {
-        val token = platform.silentToken() ?: return@withContext "Sign in to Google again in Sync first."
+        val token = credential() ?: return@withContext "Sign in to Google again in Sync first."
         runCatching { engine.sendKeyTo(token, code) }.fold(
             onSuccess = { "Sent. The other device will finish setting up in a few seconds." },
-            onFailure = { it.message ?: "Couldn't reach Google Drive." },
+            onFailure = { it.message ?: "Couldn't send it." },
         )
     }
 
@@ -228,8 +277,11 @@ class SyncManager(
         pushJob?.cancel()
         liveJob?.cancel()
         stopWaiting()
-        engine.cancelAsking(platform.silentToken())
+        engine.cancelAsking(credential())
         engine.turnOff(forgetKey)
+        platform.webdavPassword = null
+        engine.setWebdavPassword(null)
+        engine.setHostFolder(null)
         platform.settings.clear()
         platform.signOut()
         signInNeeded = false

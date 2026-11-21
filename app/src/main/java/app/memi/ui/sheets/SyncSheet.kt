@@ -6,6 +6,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.rounded.CloudSync
+import androidx.compose.material.icons.rounded.Dns
+import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -28,7 +34,7 @@ import app.memi.ui.theme.Bento
 import app.memi.ui.theme.BentoType
 import app.memi.platform.rememberQrScanner
 
-/** Sync settings: pick a Google account once, and Memi keeps an encrypted copy there from then on. */
+/** Sync settings: pick a place once (Google Drive, WebDAV or a folder), and Memi keeps an encrypted copy there from then on. */
 @Composable
 fun SyncSheet(onDismiss: () -> Unit) {
     val sync = LocalSync.current
@@ -46,16 +52,65 @@ fun SyncSheet(onDismiss: () -> Unit) {
         signIn()
     }
 
+    // WebDAV: the form, open when setting it up or entering the password again.
+    var davForm by remember { mutableStateOf(false) }
+    var davUrl by remember { mutableStateOf("") }
+    var davUser by remember { mutableStateOf("") }
+    var davPass by remember { mutableStateOf("") }
+    var davError by remember { mutableStateOf<String?>(null) }
+    fun openDavForm() {
+        (state.provider as? app.memi.engine.SyncProvider.WebDav)?.let { davUrl = it.url; davUser = it.user }
+        davPass = ""
+        davError = null
+        davForm = true
+    }
+
+    // A folder: the system picker, keeping its permission across restarts.
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val pickFolder = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val flags = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        runCatching { context.contentResolver.takePersistableUriPermission(uri, flags) }
+        signInError = null
+        sync.launch { connectFolder(uri.toString())?.let { signInError = it } }
+    }
+
     // Secure because it can show the recovery key.
     BentoSheet(onDismiss, secure = true) {
         SheetTitle("Sync")
         val problem = state.problem
         when {
             problem is SyncManager.Problem.NeedsRecoveryKey -> RecoveryKeyEntry(sync, problem.confirm)
+            davForm -> {
+                Body("Memi keeps its encrypted files in one folder on your WebDAV server. On Nextcloud, the address is under Files › Settings › WebDAV, with a folder name added (it's made if it isn't there), and an app password comes from Settings › Security.")
+                BentoField("Folder address", davUrl, { davUrl = it; davError = null }, placeholder = "https://cloud.example.com/…/Memi",
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Uri, capitalization = KeyboardCapitalization.None)
+                BentoField("User name", davUser, { davUser = it; davError = null }, capitalization = KeyboardCapitalization.None)
+                BentoField("Password", davPass, { davPass = it; davError = null }, placeholder = "Password or app password",
+                    capitalization = KeyboardCapitalization.None, password = true)
+                davError?.let { Text(it, style = BentoType.caption, color = colors.danger) }
+                val ready = davUrl.isNotBlank() && davUser.isNotBlank() && davPass.isNotEmpty() && !state.busy
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SecondaryButton("Back", Modifier.weight(1f)) { davForm = false; davError = null }
+                    PrimaryButton(if (state.busy) "Connecting…" else "Connect", Modifier.weight(1f), enabled = ready) {
+                        val (u, n, p) = Triple(davUrl, davUser, davPass)
+                        sync.launch {
+                            val error = connectWebdav(u, n, p)
+                            if (error == null) { davForm = false; davPass = "" } else davError = error
+                        }
+                    }
+                }
+            }
             !state.enabled -> {
-                Body("Keep a copy of everything in your own Google account, so a new phone, tablet or computer can pick up where you left off.")
-                Body("It's encrypted on this phone before it leaves, so Google can't read it, and it sits in a hidden folder only Memi can open, away from your Drive files. Nobody else, including us, ever gets a copy.")
-                PrimaryButton(if (state.busy) "Setting up…" else "Choose a Google account", Modifier.fillMaxWidth(), enabled = !state.busy) { chooseAccount() }
+                Body("Keep a copy of everything somewhere you choose, so a new phone, tablet or computer can pick up where you left off.")
+                Body("It's encrypted on this phone before it leaves, so wherever it's kept can't read it. Nobody else, including us, ever gets a copy.")
+                PlaceChoice(androidx.compose.material.icons.Icons.Rounded.CloudSync, "Google Drive",
+                    if (state.busy) "Setting up…" else "A hidden folder in your Google account, away from your Drive files", enabled = !state.busy) { chooseAccount() }
+                PlaceChoice(androidx.compose.material.icons.Icons.Rounded.Dns, "WebDAV", "Nextcloud, ownCloud, a NAS or another WebDAV server", enabled = !state.busy) { openDavForm() }
+                PlaceChoice(androidx.compose.material.icons.Icons.Rounded.Folder, "A folder",
+                    "One that Syncthing, Dropbox or another app keeps the same on each device", enabled = !state.busy) { pickFolder.launch(null) }
             }
             else -> {
                 Status(
@@ -67,10 +122,25 @@ fun SyncSheet(onDismiss: () -> Unit) {
                     },
                 )
                 if (problem is SyncManager.Problem.NeedsSignIn) {
-                    Body("Google needs you to sign in again before Memi can sync.")
-                    PrimaryButton("Choose a Google account", Modifier.fillMaxWidth()) { chooseAccount() }
+                    when (state.provider) {
+                        is app.memi.engine.SyncProvider.WebDav -> {
+                            Body("Your WebDAV server turned down the saved password. Enter it again to keep syncing.")
+                            PrimaryButton("Enter the password", Modifier.fillMaxWidth()) { openDavForm() }
+                        }
+                        is app.memi.engine.SyncProvider.Folder -> {
+                            Body("Memi can't open the sync folder any more. Choose it again.")
+                            PrimaryButton("Choose the folder", Modifier.fillMaxWidth()) { pickFolder.launch(null) }
+                        }
+                        else -> {
+                            Body("Google needs you to sign in again before Memi can sync.")
+                            PrimaryButton("Choose a Google account", Modifier.fillMaxWidth()) { chooseAccount() }
+                        }
+                    }
                 }
-                if (problem is SyncManager.Problem.Failed) Body("The last sync didn't work (${problem.message}). Memi will try again by itself.")
+                if (problem is SyncManager.Problem.Failed) {
+                    Body("The last sync didn't work (${problem.message}). Memi will try again by itself.")
+                    if (state.provider is app.memi.engine.SyncProvider.Folder) SecondaryButton("Choose the folder again", Modifier.fillMaxWidth()) { pickFolder.launch(null) }
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     SecondaryButton("Sync now", Modifier.weight(1f)) { sync.syncNow() }
                     SecondaryButton("Turn off", Modifier.weight(1f), danger = true) { sync.launch { turnOff(forgetKey = false) } }
@@ -97,6 +167,26 @@ private fun copySecret(context: android.content.Context, text: String) {
         putBoolean(android.content.ClipDescription.EXTRA_IS_SENSITIVE, true)
     }
     context.getSystemService(android.content.ClipboardManager::class.java)?.setPrimaryClip(clip)
+}
+
+/** One of the places sync can go, when turning it on. */
+@Composable
+private fun PlaceChoice(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, detail: String, enabled: Boolean, onClick: () -> Unit) {
+    val colors = Bento.colors
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(colors.card)
+            .clickable(enabled = enabled, role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+    ) {
+        androidx.compose.material3.Icon(icon, contentDescription = null, tint = colors.ink, modifier = Modifier.size(24.dp))
+        androidx.compose.foundation.layout.Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = BentoType.cardTitle, color = colors.ink)
+            Text(detail, style = BentoType.label, color = colors.muted)
+        }
+        androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = colors.muted)
+    }
 }
 
 @Composable
@@ -222,7 +312,7 @@ private fun RecoveryKeyEntry(sync: SyncManager, confirm: String?) {
             Text(confirm, style = BentoType.cardTitle.copy(fontFamily = FontFamily.Monospace), color = colors.ink)
         }
     }
-    Body("Or type the recovery key from Theme → Sync → Show recovery key on that device.")
+    Body("Or type the recovery key from Settings → Sync → Show recovery key on that device.")
     BentoField("Recovery key", text, { text = it; wrong = false }, placeholder = "xxxxxxxx-xxxxxxxx-…", capitalization = KeyboardCapitalization.None,
         // A password-type keyboard doesn't learn or suggest what's typed. The text stays visible.
         keyboardType = androidx.compose.ui.text.input.KeyboardType.Password)
@@ -242,7 +332,7 @@ private fun RecoveryKeyEntry(sync: SyncManager, confirm: String?) {
     if (confirmStartOver) {
         app.memi.ui.ConfirmDialog(
             title = "Start sync over?",
-            body = "Without its recovery key, nobody can open the copy in your Google account, so Memi will delete it and make a new one from what's on this phone. You'll get a new recovery key. Your other devices will ask for it before they sync again, and anything that's only on them stays there until you set them up.",
+            body = "Without its recovery key, nobody can open the synced copy, so Memi will delete it and make a new one from what's on this phone. You'll get a new recovery key. Your other devices will ask for it before they sync again, and anything that's only on them stays there until you set them up.",
             confirm = "Start over",
             dismiss = "Cancel",
             onDismiss = { confirmStartOver = false },

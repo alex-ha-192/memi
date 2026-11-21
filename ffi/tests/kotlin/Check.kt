@@ -13,6 +13,15 @@ class TestHost : Host {
     override fun deviceLabel() = "Test phone"
 }
 
+/** A folder kept by Kotlin, the way the app's picked folder is. */
+class TestFolder(private val dir: File) : HostFolder {
+    override fun list(): List<HostFile>? = dir.listFiles()?.filter { it.isFile }?.map { HostFile(it.name, it.lastModified(), it.length()) }
+    override fun read(name: String): ByteArray? = File(dir, name).takeIf { it.isFile }?.readBytes()
+    override fun write(name: String, bytes: ByteArray): String? = runCatching { File(dir, name).writeBytes(bytes) }.exceptionOrNull()?.message
+    override fun delete(name: String): String? { File(dir, name).delete(); return null }
+    override fun label() = "Sync folder"
+}
+
 fun check(ok: Boolean, what: String) { if (!ok) error("FAILED: $what"); println("ok  $what") }
 
 fun main() {
@@ -69,6 +78,29 @@ fun main() {
     val again = e.everything()
     check(again.people.size == 2 && again.notes.size == 1 && again.collections.size == 6, "all there after reopening")
     check(again.people.first { it.name == "Maya Okafor" }.id == maya, "ids stay the same")
+    // Sync through a folder Kotlin keeps: this phone turns it on, a second one joins with the
+    // recovery key, and an edit on either reaches the other.
+    val shared = File(dir, "shared").apply { mkdirs() }
+    e.connectFolder("content://test/tree/shared", TestFolder(shared))
+    check(e.status().sync.enabled && e.provider() == SyncProvider.Folder("content://test/tree/shared"), "sync on through a folder")
+    check(File(shared, "memi-backup.bin").length() > 0, "the encrypted copy is in the folder")
+    check(e.status().sync.account == "Sync folder", "Sync names the folder")
+    val dir2 = File(dir, "second").apply { mkdirs() }
+    val host2 = TestHost()
+    val e2 = Engine(File(dir2, "memi.db").path, File(dir2, "copy.db").path, File(dir2, "photos").path, File(dir2, "sync.json").path, null, host2)
+    e2.setHostFolder(TestFolder(shared))
+    e2.connectFolder("content://test/tree/shared", TestFolder(shared))
+    check(e2.status().problem is EngineProblem.NeedsKey, "the second phone asks for the key")
+    check(e2.useRecoveryKey("", e.recoveryKey()!!), "and the recovery key opens it")
+    check(e2.everything().people.map { it.name }.sorted() == listOf("Maya Okafor", "Sam Lee"), "everyone arrives")
+    val n2 = e2.addNote(e2.everything().people.first { it.name == "Sam Lee" }.id, e2.everything().collections.first().id, "Board games", null)
+    e2.syncNow("")
+    e.syncNow("")
+    check(e.everything().notes.any { it.text == "Board games" }, "an edit on the second phone reaches the first ($n2)")
+    e.setWebdavPassword(null)
+    try { e.connectWebdav("http://example.com/dav", "me", "pw"); error("should throw") } catch (x: MemiException) { check(x.message!!.contains("https"), "plain http to the internet is refused") }
+    e2.close()
+
     dir.deleteRecursively()
     println("ALL GOOD")
 }

@@ -22,6 +22,12 @@ interface SyncPlatform {
 
     /** Called when sync is turned off: forget the account on this device. */
     suspend fun signOut()
+
+    /** The WebDAV password, kept encrypted on this device. Null to forget it. */
+    var webdavPassword: String?
+
+    /** Access to a folder picked with the system picker (its content:// URI), or null if it's gone. */
+    fun folder(uri: String): app.memi.engine.HostFolder?
 }
 
 interface SettingsStore {

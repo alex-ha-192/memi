@@ -28,6 +28,34 @@ class AndroidSyncPlatform(private val context: Context) : SyncPlatform {
     override suspend fun forgetToken(token: String) = GoogleAuth.forget(context, token)
 
     override suspend fun signOut() = Unit
+
+    private val secretPrefs = context.getSharedPreferences("sync_webdav", Context.MODE_PRIVATE)
+
+    override var webdavPassword: String?
+        get() {
+            val iv = secretPrefs.getString("iv", null) ?: return null
+            val sealed = secretPrefs.getString("password", null) ?: return null
+            return runCatching {
+                val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+                cipher.init(Cipher.DECRYPT_MODE, wrappingKey(), GCMParameterSpec(128, Base64.decode(iv, Base64.NO_WRAP)))
+                String(cipher.doFinal(Base64.decode(sealed, Base64.NO_WRAP)), Charsets.UTF_8)
+            }.getOrNull()
+        }
+        set(value) {
+            if (value == null) { secretPrefs.edit().clear().apply(); return }
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(Cipher.ENCRYPT_MODE, wrappingKey())
+            secretPrefs.edit()
+                .putString("iv", Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
+                .putString("password", Base64.encodeToString(cipher.doFinal(value.toByteArray(Charsets.UTF_8)), Base64.NO_WRAP))
+                .apply()
+        }
+
+    override fun folder(uri: String): app.memi.engine.HostFolder? {
+        val u = android.net.Uri.parse(uri)
+        val allowed = context.contentResolver.persistedUriPermissions.any { it.uri == u && it.isReadPermission && it.isWritePermission }
+        return if (allowed) SafFolder(context, u) else null
+    }
 }
 
 private class PrefsStore(context: Context) : SettingsStore {
@@ -92,22 +120,26 @@ private class AndroidKeyVault(private val context: Context) : KeyVault {
         }
     }
 
-    private fun wrappingKey(): SecretKey {
-        val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        (ks.getEntry(WRAP_ALIAS, null) as? KeyStore.SecretKeyEntry)?.let { return it.secretKey }
-        val gen = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
-        gen.init(
-            KeyGenParameterSpec.Builder(WRAP_ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
-                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                .setKeySize(256)
-                .build()
-        )
-        return gen.generateKey()
-    }
-
     private companion object {
         const val BLOCK_KEY = "memi_sync_key"
-        const val WRAP_ALIAS = "memi_sync_wrap"
     }
 }
+
+private const val WRAP_ALIAS = "memi_sync_wrap"
+
+/** A hardware-backed Keystore key that never leaves this phone; it wraps the sync key and the WebDAV password. */
+private fun wrappingKey(): SecretKey {
+    val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+    (ks.getEntry(WRAP_ALIAS, null) as? KeyStore.SecretKeyEntry)?.let { return it.secretKey }
+    val gen = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+    gen.init(
+        KeyGenParameterSpec.Builder(WRAP_ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+            .setKeySize(256)
+            .build()
+    )
+    return gen.generateKey()
+}
+
+

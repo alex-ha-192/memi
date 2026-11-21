@@ -11,7 +11,9 @@ uniffi::setup_scaffolding!();
 
 use memi_engine::core::model as m;
 use memi_engine::edits::Edits;
+use memi_engine::any_drive::AnyDrive;
 use memi_engine::native_drive::{block_on, NativeDrive};
+use memi_engine::webdav::WebDavDrive;
 use memi_engine::sqlite::SqliteStore;
 use memi_engine::sync::{self as engine, Handle};
 use memi_engine::{Memi, Platform, SyncSettings};
@@ -264,6 +266,136 @@ fn delete_photo_in(dir: &Path, key: &str) {
 pub struct Engine {
     memi: Arc<Mutex<Memi<AndroidPlatform>>>,
     photo_dir: PathBuf,
+    /// For WebDAV: the password, which the app keeps encrypted and hands over at start.
+    webdav_password: Mutex<Option<String>>,
+    /// For a folder: the app's access to the folder the person picked.
+    host_folder: Mutex<Option<Arc<dyn HostFolder>>>,
+}
+
+// --- Where sync goes ------------------------------------------------------------------------------
+
+/// Where sync keeps its files, as Sync shows it.
+#[derive(uniffi::Enum, Clone, Debug, PartialEq)]
+pub enum SyncProvider {
+    Google,
+    WebDav { url: String, user: String },
+    /// A folder the person picked; `path` is its content:// URI.
+    Folder { path: String },
+}
+
+impl From<memi_engine::Provider> for SyncProvider {
+    fn from(p: memi_engine::Provider) -> Self {
+        match p {
+            memi_engine::Provider::Google => SyncProvider::Google,
+            memi_engine::Provider::WebDav { url, user } => SyncProvider::WebDav { url, user },
+            memi_engine::Provider::Folder { path } => SyncProvider::Folder { path },
+        }
+    }
+}
+
+/// A file in the picked folder.
+#[derive(uniffi::Record, Clone, Debug)]
+pub struct HostFile {
+    pub name: String,
+    /// Milliseconds since 1970.
+    pub modified: i64,
+    pub size: i64,
+}
+
+/// The folder the person picked, which only the app can open (Android's storage access framework).
+/// Kotlin implements this; sync reads and writes Memi's files through it.
+#[uniffi::export(with_foreign)]
+pub trait HostFolder: Send + Sync {
+    /// Everything in the folder, or None if it can't be opened.
+    fn list(&self) -> Option<Vec<HostFile>>;
+    /// None if it can't be read.
+    fn read(&self, name: String) -> Option<Vec<u8>>;
+    /// Writes (making or replacing) a file. Returns what went wrong, or None.
+    fn write(&self, name: String, bytes: Vec<u8>) -> Option<String>;
+    /// Returns what went wrong, or None (also when it wasn't there).
+    fn delete(&self, name: String) -> Option<String>;
+    /// The folder's name, to show in Sync.
+    fn label(&self) -> String;
+}
+
+struct HostFolderDrive(Arc<dyn HostFolder>);
+
+/// Stands in when the app hasn't handed over the folder (access was taken away, say).
+struct NoFolder;
+
+impl HostFolder for NoFolder {
+    fn list(&self) -> Option<Vec<HostFile>> { None }
+    fn read(&self, _: String) -> Option<Vec<u8>> { None }
+    fn write(&self, _: String, _: Vec<u8>) -> Option<String> { Some(FOLDER_GONE.into()) }
+    fn delete(&self, _: String) -> Option<String> { Some(FOLDER_GONE.into()) }
+    fn label(&self) -> String { "the folder".into() }
+}
+
+const FOLDER_GONE: &str = "Memi can't open the sync folder any more. Choose it again in Sync.";
+
+impl HostFolderDrive {
+    fn remote(f: HostFile) -> engine::RemoteFile {
+        engine::RemoteFile { id: f.name.clone(), modified_time: Some(format!("{}-{}", f.modified, f.size)), name: f.name }
+    }
+    fn files(&self) -> anyhow::Result<Vec<HostFile>> { self.0.list().ok_or_else(|| anyhow::anyhow!(FOLDER_GONE)) }
+}
+
+impl engine::Drive for HostFolderDrive {
+    async fn find(&self, name: &str) -> anyhow::Result<Option<engine::RemoteFile>> {
+        Ok(self.files()?.into_iter().find(|f| f.name == name).map(Self::remote))
+    }
+    async fn list(&self, prefix: &str) -> anyhow::Result<Vec<engine::RemoteFile>> {
+        let mut v: Vec<HostFile> = self.files()?.into_iter().filter(|f| f.name.starts_with(prefix)).collect();
+        v.sort_by(|a, b| b.modified.cmp(&a.modified));
+        Ok(v.into_iter().map(Self::remote).collect())
+    }
+    async fn download(&self, id: &str) -> anyhow::Result<Vec<u8>> { self.0.read(id.to_string()).ok_or_else(|| anyhow::anyhow!("Couldn't read {id} from the sync folder")) }
+    async fn create(&self, name: &str, bytes: &[u8]) -> anyhow::Result<engine::RemoteFile> { self.update(name, bytes).await }
+    async fn update(&self, id: &str, bytes: &[u8]) -> anyhow::Result<engine::RemoteFile> {
+        if let Some(e) = self.0.write(id.to_string(), bytes.to_vec()) { anyhow::bail!("Couldn't write to the sync folder: {e}"); }
+        self.find(id).await?.ok_or_else(|| anyhow::anyhow!("The folder didn't keep {id}"))
+    }
+    async fn delete(&self, id: &str) -> anyhow::Result<()> {
+        match self.0.delete(id.to_string()) { Some(e) => anyhow::bail!("Couldn't delete from the sync folder: {e}"), None => Ok(()) }
+    }
+    async fn email(&self) -> Option<String> { Some(self.0.label()) }
+}
+
+/// Whichever place sync uses on the phone.
+enum PhoneDrive {
+    Native(AnyDrive),
+    Host(HostFolderDrive),
+}
+
+impl engine::Drive for PhoneDrive {
+    async fn find(&self, name: &str) -> anyhow::Result<Option<engine::RemoteFile>> { match self { PhoneDrive::Native(d) => d.find(name).await, PhoneDrive::Host(d) => d.find(name).await } }
+    async fn list(&self, prefix: &str) -> anyhow::Result<Vec<engine::RemoteFile>> { match self { PhoneDrive::Native(d) => d.list(prefix).await, PhoneDrive::Host(d) => d.list(prefix).await } }
+    async fn download(&self, id: &str) -> anyhow::Result<Vec<u8>> { match self { PhoneDrive::Native(d) => d.download(id).await, PhoneDrive::Host(d) => d.download(id).await } }
+    async fn create(&self, name: &str, bytes: &[u8]) -> anyhow::Result<engine::RemoteFile> { match self { PhoneDrive::Native(d) => d.create(name, bytes).await, PhoneDrive::Host(d) => d.create(name, bytes).await } }
+    async fn update(&self, id: &str, bytes: &[u8]) -> anyhow::Result<engine::RemoteFile> { match self { PhoneDrive::Native(d) => d.update(id, bytes).await, PhoneDrive::Host(d) => d.update(id, bytes).await } }
+    async fn delete(&self, id: &str) -> anyhow::Result<()> { match self { PhoneDrive::Native(d) => d.delete(id).await, PhoneDrive::Host(d) => d.delete(id).await } }
+    async fn email(&self) -> Option<String> { match self { PhoneDrive::Native(d) => d.email().await, PhoneDrive::Host(d) => d.email().await } }
+}
+
+impl Engine {
+    /// The place sync goes, from the saved provider. `token` only matters for Google.
+    fn drive(&self, token: &str) -> PhoneDrive {
+        match self.memi.with(|m| m.sync.provider.clone()) {
+            memi_engine::Provider::Google => PhoneDrive::Native(AnyDrive::Google(NativeDrive::new(token))),
+            memi_engine::Provider::WebDav { url, user } => {
+                let pass = self.webdav_password.lock().unwrap().clone().unwrap_or_default();
+                match WebDavDrive::new(&url, &user, &pass) {
+                    Ok(d) => PhoneDrive::Native(AnyDrive::WebDav(d)),
+                    // A saved address that no longer passes the checks: fail the way a bad token does.
+                    Err(_) => PhoneDrive::Native(AnyDrive::Google(NativeDrive::new(""))),
+                }
+            }
+            memi_engine::Provider::Folder { path } => match self.host_folder.lock().unwrap().clone() {
+                Some(f) => PhoneDrive::Host(HostFolderDrive(f)),
+                None => { let _ = path; PhoneDrive::Host(HostFolderDrive(Arc::new(NoFolder))) }
+            },
+        }
+    }
 }
 
 fn missing() -> MemiError { MemiError::Failed { message: "That's no longer here.".into() } }
@@ -309,7 +441,7 @@ impl Engine {
         let photo_dir = PathBuf::from(photo_dir);
         let mut platform = AndroidPlatform { store, photo_dir: photo_dir.clone(), sync_path, host };
         if migrated { platform.save_sync(&sync); }
-        Ok(Arc::new(Engine { memi: Arc::new(Mutex::new(Memi::new(snapshot, sync, platform))), photo_dir }))
+        Ok(Arc::new(Engine { memi: Arc::new(Mutex::new(Memi::new(snapshot, sync, platform))), photo_dir, webdav_password: Mutex::new(None), host_folder: Mutex::new(None) }))
     }
 
     /// Everything, photos included, as a backup file the person keeps (not encrypted).
@@ -432,42 +564,81 @@ impl Engine {
 
     /// Right after you pick your Google account: turns sync on, or (with no key here) starts asking
     /// your other devices for it.
-    pub fn connect(&self, token: String) { block_on(engine::connect(&self.memi, &NativeDrive::new(&token))); }
+    pub fn connect(&self, token: String) {
+        self.memi.with(|m| m.update_sync(|s| s.provider = memi_engine::Provider::Google));
+        block_on(engine::connect(&self.memi, &self.drive(&token)));
+    }
+
+    /// Where sync goes.
+    pub fn provider(&self) -> SyncProvider { self.memi.with(|m| m.sync.provider.clone()).into() }
+
+    /// The WebDAV password (kept encrypted by the app), given at start and after connecting.
+    pub fn set_webdav_password(&self, password: Option<String>) { *self.webdav_password.lock().unwrap() = password; }
+
+    /// Access to the picked folder, given at start and after picking.
+    pub fn set_host_folder(&self, folder: Option<Arc<dyn HostFolder>>) { *self.host_folder.lock().unwrap() = folder; }
+
+    /// Checks a WebDAV address and password, then turns sync on there. A mistake comes back as an
+    /// error to show in the form; nothing changes.
+    pub fn connect_webdav(&self, url: String, user: String, password: String) -> Res<()> {
+        let url = memi_engine::dav::normalise_url(&url)?;
+        let user = user.trim().to_string();
+        if user.is_empty() { return Err(MemiError::Failed { message: "Enter your user name".into() }); }
+        let drive = WebDavDrive::new(&url, &user, &password)?;
+        match block_on(engine::Drive::find(&drive, engine::FILE)) {
+            Err(e) if e.is::<engine::Unauthorized>() => return Err(MemiError::Failed { message: "The server turned down that user name and password. On Nextcloud, use an app password (Settings › Security).".into() }),
+            Err(e) => return Err(e.into()),
+            Ok(_) => {}
+        }
+        self.set_webdav_password(Some(password));
+        self.memi.with(|m| { m.update_sync(|s| s.provider = memi_engine::Provider::WebDav { url, user }); m.set_status(|s| s.problem = None) });
+        let enabled = self.memi.with(|m| m.sync.enabled);
+        let d = PhoneDrive::Native(AnyDrive::WebDav(drive));
+        if enabled { block_on(engine::sync_now(&self.memi, &d)); } else { block_on(engine::connect(&self.memi, &d)); }
+        Ok(())
+    }
+
+    /// Turns sync on through the folder the person picked (`uri`, kept to open it again later).
+    pub fn connect_folder(&self, uri: String, folder: Arc<dyn HostFolder>) {
+        self.set_host_folder(Some(folder.clone()));
+        self.memi.with(|m| m.update_sync(|s| s.provider = memi_engine::Provider::Folder { path: uri }));
+        block_on(engine::connect(&self.memi, &PhoneDrive::Host(HostFolderDrive(folder))));
+    }
 
     /// Brings in changes from your other devices and sends this phone's.
-    pub fn sync_now(&self, token: String) { block_on(engine::sync_now(&self.memi, &NativeDrive::new(&token))); }
+    pub fn sync_now(&self, token: String) { block_on(engine::sync_now(&self.memi, &self.drive(&token))); }
 
     /// True if the key opens the backup in your account (sync is then on).
     pub fn use_recovery_key(&self, token: String, text: String) -> bool {
-        block_on(engine::use_recovery_key(&self.memi, &NativeDrive::new(&token), &text))
+        block_on(engine::use_recovery_key(&self.memi, &self.drive(&token), &text))
     }
 
-    pub fn ask_for_key(&self, token: String) { block_on(engine::ask_for_key(&self.memi, &NativeDrive::new(&token))); }
+    pub fn ask_for_key(&self, token: String) { block_on(engine::ask_for_key(&self.memi, &self.drive(&token))); }
 
     /// Looks once for another device's answer. True once the key is in and sync is on.
     pub fn check_pairing(&self, token: String) -> Res<bool> {
-        Ok(block_on(engine::check_pairing(&self.memi, &NativeDrive::new(&token)))?)
+        Ok(block_on(engine::check_pairing(&self.memi, &self.drive(&token)))?)
     }
 
     pub fn cancel_asking(&self, token: Option<String>) {
         match token {
-            Some(t) => block_on(engine::cancel_asking(&self.memi, &NativeDrive::new(&t))),
+            Some(t) => block_on(engine::cancel_asking(&self.memi, &self.drive(&t))),
             None => self.memi.with(|m| m.set_status(|s| s.asking = None)),
         }
     }
 
     /// Allow (sends the key, sealed for that device alone) or turn down another device's request.
     pub fn answer_join(&self, token: String, file_id: String, allow: bool) -> Res<()> {
-        Ok(block_on(engine::answer_join(&self.memi, &NativeDrive::new(&token), &file_id, allow))?)
+        Ok(block_on(engine::answer_join(&self.memi, &self.drive(&token), &file_id, allow))?)
     }
 
     /// Sends this phone's key to the computer whose QR code was scanned.
     pub fn send_key_to(&self, token: String, code: String) -> Res<()> {
-        Ok(block_on(engine::send_key_to(&self.memi, &NativeDrive::new(&token), &code))?)
+        Ok(block_on(engine::send_key_to(&self.memi, &self.drive(&token), &code))?)
     }
 
     /// Replaces the backup in your account with what's here, under a new key.
-    pub fn start_over(&self, token: String) { block_on(engine::start_over(&self.memi, &NativeDrive::new(&token))); }
+    pub fn start_over(&self, token: String) { block_on(engine::start_over(&self.memi, &self.drive(&token))); }
 
     pub fn turn_off(&self, forget_key: bool) { self.memi.with(|m| m.turn_off_sync(forget_key)); }
 
