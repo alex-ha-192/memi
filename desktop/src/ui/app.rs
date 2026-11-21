@@ -7,7 +7,7 @@ use crate::model::*;
 use memi_engine::edits::Edits;
 use crate::sync::{self, Problem};
 use crate::{dates, photos};
-use chrono::NaiveDate;
+use memi_core::dates::Date;
 use gpui::prelude::*;
 use gpui::*;
 use gpui_component::input::{InputEvent, InputState};
@@ -94,7 +94,7 @@ pub struct NoteEditor {
     pub note: Note,
     pub text: Entity<InputState>,
     pub collection_id: i64,
-    pub due: Option<NaiveDate>,
+    pub due: Option<Date>,
 }
 
 pub struct CategoryEditor {
@@ -105,7 +105,7 @@ pub struct CategoryEditor {
     pub day: Option<i64>,
     pub yearly: bool,
     /// When the calendar is open: the month it's showing.
-    pub picking: Option<NaiveDate>,
+    pub picking: Option<Date>,
 }
 
 pub enum Overlay {
@@ -394,7 +394,7 @@ impl MemiView {
         if name.is_empty() { return; }
         let relationship = e.relationship.read(cx).value().trim().to_string();
         let day: Option<u32> = e.day.read(cx).value().trim().parse().ok().filter(|d| (1..=31).contains(d));
-        let year: Option<i32> = e.year.read(cx).value().trim().parse().ok().filter(|y| (1900..=dates::today().format("%Y").to_string().parse().unwrap_or(2100)).contains(y));
+        let year: Option<i32> = e.year.read(cx).value().trim().parse().ok().filter(|y| (1900..=dates::year(dates::today())).contains(y));
         let has_birthday = day.is_some() && e.month.is_some();
         let base = e.id.and_then(|id| self.person(id).cloned()).unwrap_or_else(|| Person::new(&name));
         let person = Person {

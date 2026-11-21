@@ -9,7 +9,7 @@ use super::widgets::*;
 use crate::model::*;
 use crate::sync::Problem;
 use crate::{dates, photos};
-use chrono::{Datelike, Duration as Days, NaiveDate, Weekday};
+use memi_core::dates::Date;
 use gpui::prelude::*;
 use gpui::*;
 use gpui_component::input::Input;
@@ -195,13 +195,13 @@ impl MemiView {
                 cx.notify();
             })));
         }
-        let saturday = (0..7).map(|d| today + Days::days(d)).find(|d| d.weekday() == Weekday::Sat).unwrap_or(today);
-        let options: [(&str, Option<NaiveDate>); 5] = [
+        let saturday = (0..7).filter_map(|d| dates::add_days(today, d)).find(|d| dates::weekday_from_monday(*d) == 5).unwrap_or(today);
+        let options: [(&str, Option<Date>); 5] = [
             ("No date", None),
-            ("Tomorrow", Some(today + Days::days(1))),
+            ("Tomorrow", dates::add_days(today, 1)),
             ("This weekend", Some(saturday)),
-            ("Next week", Some(today + Days::days(7))),
-            ("In a month", today.checked_add_months(chrono::Months::new(1))),
+            ("Next week", dates::add_days(today, 7)),
+            ("In a month", dates::add_months(today, 1)),
         ];
         let mut dues = div().flex().flex_wrap().gap(px(6.));
         for (i, (text_, date)) in options.into_iter().enumerate() {
@@ -249,7 +249,7 @@ impl MemiView {
             .when(occ == occasion::BIRTHDAY && !person.has_birthday(), |d| d.child(caption(format!("{} doesn't have a birthday saved yet. Add one from their profile.", person.first_name()), c.muted).pl(px(4.))))
             .when(occ == occasion::DATE, |d| d
                 .child(div().flex().flex_wrap().gap(px(6.))
-                    .child(chip("pick", &chosen.map(|d| format!("{} {}", dates::short_date(d), d.year())).unwrap_or_else(|| "Pick a date".into()), chosen.is_some(), c)
+                    .child(chip("pick", &chosen.map(|d| format!("{} {}", dates::short_date(d), dates::year(d))).unwrap_or_else(|| "Pick a date".into()), chosen.is_some(), c)
                         .on_click(cx.listener(move |this, _, _, cx| {
                             if let Some(Overlay::EditCategory(e)) = &mut this.overlay { e.picking = Some(chosen.unwrap_or_else(dates::today)); }
                             cx.notify();
@@ -262,16 +262,16 @@ impl MemiView {
     }
 
     /// A month of days to pick from.
-    fn calendar(&self, shown: NaiveDate, chosen: Option<NaiveDate>, c: &Colors, cx: &mut Context<Self>) -> impl IntoElement {
-        let first = shown.with_day(1).unwrap();
+    fn calendar(&self, shown: Date, chosen: Option<Date>, c: &Colors, cx: &mut Context<Self>) -> impl IntoElement {
+        let first = shown.first_of_month();
         let today = dates::today();
-        let lead = first.weekday().num_days_from_monday() as i64;
-        let days_in_month = (first.checked_add_months(chrono::Months::new(1)).unwrap() - first).num_days();
+        let lead = dates::weekday_from_monday(first) as i64;
+        let days_in_month = first.days_in_month() as i64;
         let step = |delta: i32| move |this: &mut MemiView, _: &ClickEvent, _: &mut Window, cx: &mut Context<MemiView>| {
             if let Some(Overlay::EditCategory(e)) = &mut this.overlay {
                 if let Some(p) = e.picking {
-                    let f = p.with_day(1).unwrap();
-                    e.picking = if delta > 0 { f.checked_add_months(chrono::Months::new(1)) } else { f.checked_sub_months(chrono::Months::new(1)) };
+                    let f = p.first_of_month();
+                    e.picking = dates::add_months(f, if delta > 0 { 1 } else { -1 });
                 }
             }
             cx.notify();
@@ -282,7 +282,7 @@ impl MemiView {
         }
         for _ in 0..lead { grid = grid.child(div()); }
         for d in 1..=days_in_month {
-            let date = first.with_day(d as u32).unwrap();
+            let date = dates::add_days(first, d - 1).unwrap_or(first);
             let selected = chosen == Some(date);
             grid = grid.child(div().id(("day", d as usize)).h(px(34.)).rounded(px(10.)).flex().items_center().justify_center().cursor_pointer()
                 .when(selected, |x| x.bg(c.ink))
@@ -298,7 +298,7 @@ impl MemiView {
             .child(div().flex().items_center()
                 .child(div().id("prev").size(px(30.)).rounded(px(10.)).flex().items_center().justify_center().cursor_pointer().hover(|s| s.bg(c.sheet))
                     .child(icon("chevron-left", 17., c.ink)).on_click(cx.listener(step(-1))))
-                .child(card_title(format!("{} {}", dates::MONTHS_LONG[first.month0() as usize], first.year()), c.ink).flex_1().flex().justify_center())
+                .child(card_title(format!("{} {}", dates::MONTHS_LONG[dates::month(first) as usize - 1], dates::year(first)), c.ink).flex_1().flex().justify_center())
                 .child(div().id("next").size(px(30.)).rounded(px(10.)).flex().items_center().justify_center().cursor_pointer().hover(|s| s.bg(c.sheet))
                     .child(icon("chevron-right", 17., c.ink)).on_click(cx.listener(step(1)))))
             .child(grid)

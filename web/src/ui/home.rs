@@ -42,7 +42,7 @@ fn Header() -> impl IntoView {
                         <div class="date-line">
                             <span class="caption muted">{move || {
                                 let t = dates::today();
-                                format!("{} {}", t.format("%a"), dates::short_date(t))
+                                format!("{} {}", dates::weekday_short(t), dates::short_date(t))
                             }}</span>
                             <SyncChip />
                         </div>

@@ -2,7 +2,7 @@
 
 use crate::dates;
 use crate::model::*;
-use chrono::NaiveDate;
+use crate::dates::Date;
 use std::collections::HashMap;
 
 const FRESH_DAYS: i64 = 14;
@@ -14,16 +14,16 @@ pub struct FreshItem {
     pub person: Person,
     pub collection: Option<Collection>,
     /// Set when something is due soon; otherwise it's simply new.
-    pub due: Option<NaiveDate>,
+    pub due: Option<Date>,
 }
 
 /// A note's own deadline, or else the next date its category is building up to.
-pub fn effective_due(n: &Note, p: &Person, c: Option<&Collection>, today: NaiveDate) -> Option<NaiveDate> {
+pub fn effective_due(n: &Note, p: &Person, c: Option<&Collection>, today: Date) -> Option<Date> {
     if let Some(d) = n.due_at { return Some(dates::to_date(d)); }
     c.and_then(|c| dates::next_occasion(c, p, today))
 }
 
-pub fn still_fresh(notes: &[Note], people: &[Person], cols: &[Collection], today: NaiveDate) -> Vec<FreshItem> {
+pub fn still_fresh(notes: &[Note], people: &[Person], cols: &[Collection], today: Date) -> Vec<FreshItem> {
     let by_id: HashMap<i64, &Person> = people.iter().map(|p| (p.id, p)).collect();
     let cols: HashMap<i64, &Collection> = cols.iter().map(|c| (c.id, c)).collect();
     let mut out: Vec<FreshItem> = notes
@@ -34,7 +34,7 @@ pub fn still_fresh(notes: &[Note], people: &[Person], cols: &[Collection], today
             let c = cols.get(&n.collection_id).copied();
             let due = effective_due(n, p, c, today);
             let due_soon = due.map(|d| dates::days_until(d, today) <= SOON_DAYS).unwrap_or(false);
-            let fresh = (today - dates::to_date(n.mentioned_at)).num_days() <= FRESH_DAYS;
+            let fresh = dates::days_until(today, dates::to_date(n.mentioned_at)) <= FRESH_DAYS;
             if !due_soon && !fresh { return None; }
             Some(FreshItem { note: n.clone(), person: p.clone(), collection: c.cloned(), due: if due_soon { due } else { None } })
         })
@@ -47,7 +47,7 @@ pub fn still_fresh(notes: &[Note], people: &[Person], cols: &[Collection], today
 
 pub struct Upcoming {
     pub person: Person,
-    pub date: NaiveDate,
+    pub date: Date,
     pub title: String,
     pub open: usize,
     pub collection: Option<Collection>,
@@ -57,7 +57,7 @@ pub struct Upcoming {
 }
 
 /// The next birthday or dated category within a month, for the big tile.
-pub fn next_up(people: &[Person], notes: &[Note], cols: &[Collection], today: NaiveDate) -> Option<Upcoming> {
+pub fn next_up(people: &[Person], notes: &[Note], cols: &[Collection], today: Date) -> Option<Upcoming> {
     let mut open: HashMap<i64, usize> = HashMap::new();
     for n in notes.iter().filter(|n| n.status == status::OPEN) {
         *open.entry(n.collection_id).or_default() += 1;
@@ -93,7 +93,7 @@ pub fn next_up(people: &[Person], notes: &[Note], cols: &[Collection], today: Na
 
 /// The next few things coming up, soonest first, however far away: birthdays, dated categories
 /// (an anniversary, a trip), and open plans or notes that have their own date. For the big tile.
-pub fn next_events(people: &[Person], notes: &[Note], cols: &[Collection], today: NaiveDate, count: usize) -> Vec<Upcoming> {
+pub fn next_events(people: &[Person], notes: &[Note], cols: &[Collection], today: Date, count: usize) -> Vec<Upcoming> {
     let mut open: HashMap<i64, usize> = HashMap::new();
     for n in notes.iter().filter(|n| n.status == status::OPEN) {
         *open.entry(n.collection_id).or_default() += 1;
@@ -144,7 +144,7 @@ pub const REMINDER_DAYS: [i64; 3] = [0, 1, 7];
 /// A birthday reminder that's due.
 pub struct Reminder {
     pub person: Person,
-    pub date: NaiveDate,
+    pub date: Date,
     pub days_before: i64,
     /// Remembered once shown, so each reminder appears once: "<person uid>:<date>:<days before>".
     pub key: String,
@@ -153,7 +153,7 @@ pub struct Reminder {
 }
 
 /// The birthday reminders due today for the chosen `days` (any of [REMINDER_DAYS]).
-pub fn reminders_due(people: &[Person], notes: &[Note], cols: &[Collection], today: NaiveDate, days: &[i64]) -> Vec<Reminder> {
+pub fn reminders_due(people: &[Person], notes: &[Note], cols: &[Collection], today: Date, days: &[i64]) -> Vec<Reminder> {
     let mut out = vec![];
     for p in people {
         let Some(date) = dates::next_birthday(p, today) else { continue };
@@ -187,7 +187,7 @@ mod reminder_tests {
 
     #[test]
     fn reminders_on_the_chosen_days() {
-        let today = NaiveDate::from_ymd_opt(2026, 11, 20).unwrap();
+        let today = dates::ymd(2026, 11, 20).unwrap();
         let mut maya = Person::new("Maya Okafor");
         maya.uid = "m".into();
         (maya.birthday_month, maya.birthday_day, maya.birth_year) = (Some(11), Some(27), Some(1994));
@@ -211,7 +211,7 @@ mod tests {
 
     #[test]
     fn birthday_in_six_days_is_next_up() {
-        let today = NaiveDate::from_ymd_opt(2026, 11, 20).unwrap();
+        let today = dates::ymd(2026, 11, 20).unwrap();
         let mut p = Person::new("Maya Okafor");
         p.id = 1;
         p.birthday_month = Some(11);
@@ -225,7 +225,7 @@ mod tests {
         let plan = Note {
             id: 1, uid: "n1".into(), person_id: 1, person_uid: "p1".into(), collection_id: 1, collection_uid: "c1".into(),
             text: "Book the restaurant".into(), mentioned_at: 0, first_mentioned_at: 0, mention_count: 1,
-            due_at: Some(chrono::NaiveDate::from_ymd_opt(2026, 11, 21).unwrap().and_hms_opt(12, 0, 0).unwrap().and_utc().timestamp_millis()),
+            due_at: Some(1_795_262_400_000 /* 21 Nov 2026, 12:00 UTC */),
             status: status::OPEN, outcome: outcome::NONE, done_at: None, created_at: 0, updated_at: 0, sort_order: 0,
         };
         let events = next_events(&[p], &[plan], &[gift], today, 3);

@@ -107,12 +107,12 @@ fn NoteEditor(uid: String) -> impl IntoView {
     let a = app();
     let Some(n) = a.peek(|d| d.note(&uid).cloned()) else { return ().into_any() };
     let text = RwSignal::new(n.text.clone());
-    let due = RwSignal::new(n.due_at.map(|d| dates::to_date(d).format("%Y-%m-%d").to_string()).unwrap_or_default());
+    let due = RwSignal::new(n.due_at.map(|d| dates::iso(dates::to_date(d))).unwrap_or_default());
     let n_save = n.clone();
     let save = move |_| {
         let t = text.get_untracked();
         if t.trim().is_empty() { return; }
-        let due_at = chrono::NaiveDate::parse_from_str(&due.get_untracked(), "%Y-%m-%d").ok().map(dates::end_of_day);
+        let due_at = dates::parse_iso(&due.get_untracked()).map(dates::end_of_day);
         a.change(|d| d.update_note(Note { text: t.trim().to_string(), due_at, ..n_save.clone() }));
         a.close_overlay();
     };
@@ -255,14 +255,14 @@ fn CategoryEditor(person: String, uid: Option<String>) -> impl IntoView {
     let existing = uid.as_ref().and_then(|u| a.peek(|d| d.collection(u).cloned()));
     let name = RwSignal::new(existing.as_ref().map(|c| c.name.clone()).unwrap_or_default());
     let occ = RwSignal::new(existing.as_ref().map(|c| c.occasion.clone()).unwrap_or_else(|| occasion::NONE.into()));
-    let date = RwSignal::new(existing.as_ref().and_then(|c| c.occasion_day).and_then(dates::from_epoch_day).map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default());
+    let date = RwSignal::new(existing.as_ref().and_then(|c| c.occasion_day).and_then(dates::from_epoch_day).map(dates::iso).unwrap_or_default());
     let yearly = RwSignal::new(existing.as_ref().map(|c| c.yearly).unwrap_or(false));
     let editing = existing.is_some();
     let save = move |_| {
         let n = name.get_untracked();
         if n.trim().is_empty() { return; }
         let o = occ.get_untracked();
-        let day = chrono::NaiveDate::parse_from_str(&date.get_untracked(), "%Y-%m-%d").ok().map(dates::epoch_day);
+        let day = dates::parse_iso(&date.get_untracked()).map(dates::epoch_day);
         let (o, day) = if o == occasion::DATE && day.is_none() { (occasion::NONE.to_string(), None) } else { (o, day) };
         match &existing {
             Some(c) => a.change(|d| d.update_collection(Collection { name: n, occasion: o.clone(), occasion_day: if o == occasion::DATE { day } else { None }, yearly: yearly.get_untracked(), ..c.clone() })),

@@ -160,5 +160,5 @@ pub mod legacy_uid {
 }
 
 pub fn now_millis() -> i64 {
-    chrono::Utc::now().timestamp_millis()
+    jiff::Timestamp::now().as_millisecond()
 }

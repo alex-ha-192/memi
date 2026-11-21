@@ -40,7 +40,7 @@ fn Person(p: Person) -> impl IntoView {
         (cats, open, done)
     });
     let birthday = dates::next_birthday(&p, today).map(|d| {
-        let when = format!("{} {}", d.format("%-d"), &dates::MONTHS_LONG[(p.birthday_month.unwrap_or(1) - 1) as usize][..3]);
+        let when = format!("{} {}", dates::day(d), &dates::MONTHS_LONG[(p.birthday_month.unwrap_or(1) - 1) as usize][..3]);
         match dates::turning_age(&p, today) {
             Some(age) => format!("Birthday · {when} · turns {age}"),
             None => format!("Birthday · {when}"),
@@ -90,7 +90,7 @@ fn Person(p: Person) -> impl IntoView {
     }
 }
 
-fn category_tile(p: &Person, c: Collection, open: &[Note], today: chrono::NaiveDate) -> impl IntoView {
+fn category_tile(p: &Person, c: Collection, open: &[Note], today: dates::Date) -> impl IntoView {
     let a = app();
     let mine: Vec<&Note> = open.iter().filter(|n| n.collection_uid == c.uid).collect();
     let slot = c.slot.rem_euclid(5);
