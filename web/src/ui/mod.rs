@@ -80,6 +80,7 @@ pub fn Root() -> impl IntoView {
 #[component]
 fn ThemePanel() -> impl IntoView {
     let a = app();
+    let backup_file = NodeRef::<leptos::html::Input>::new();
     let mode = move |id: &'static str, label: &'static str, icon: &'static str| view! {
         <button class="seg" class:on=move || a.settings.with(|s| s.appearance == id)
             on:click=move |_| a.update_settings(|s| s.appearance = id.into())>
@@ -131,6 +132,31 @@ fn ThemePanel() -> impl IntoView {
                     <span class="muted grow ellipsis">{sync_detail}</span>
                     <Icon name="right" size=17. />
                 </button>
+                <div class="row between baseline"><b>"Backup file"</b><span class="caption muted">"Not encrypted"</span></div>
+                <div class="row gap">
+                    <button class="button grow" on:click=move |_| {
+                        a.theme_open.set(false);
+                        let bytes = a.memi.with_untracked(|m| m.export_file());
+                        let name = format!("Memi backup {}.json", memi_engine::core::dates::iso(memi_engine::core::dates::today()));
+                        a.show_toast(if crate::js::download(&name, &bytes, "application/json") {
+                            "Backup saved to your downloads. It isn't encrypted, so keep it somewhere private."
+                        } else { "Couldn't save the backup." }, None);
+                    }>"Save a backup"</button>
+                    <button class="button grow" on:click=move |_| { if let Some(i) = backup_file.get() { i.click() } }>"Open a backup"</button>
+                    <input type="file" accept=".json,application/json" node_ref=backup_file hidden on:change=move |_| {
+                        let Some(input) = backup_file.get() else { return };
+                        let Some(f) = input.files().and_then(|l| l.get(0)) else { return };
+                        input.set_value("");
+                        a.theme_open.set(false);
+                        leptos::task::spawn_local(async move {
+                            let msg = match crate::js::file_bytes(&f).await.and_then(|b| a.with_memi(|m| m.import_file(&b))) {
+                                Ok(got) => got.summary(),
+                                Err(e) => format!("Couldn't open that backup: {e}"),
+                            };
+                            a.show_toast(msg, None);
+                        });
+                    } />
+                </div>
             </div>
         </Show>
     }

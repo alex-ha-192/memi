@@ -44,6 +44,12 @@ class Repository(private val engine: Engine) {
         _notes.value = all.notes.map { it.toNote() }
     }
 
+    /** Everything, photos included, as a backup file (not encrypted). */
+    suspend fun exportFile(): ByteArray = withContext(Dispatchers.IO) { engine.exportFile() }
+
+    /** Merges a backup file into what's here; returns a line to show. Throws if it isn't a Memi backup. */
+    suspend fun importFile(bytes: ByteArray): String = edit { importFile(bytes) }
+
     private suspend fun <T> edit(block: Engine.() -> T): T = withContext(Dispatchers.IO) {
         val result = engine.block()
         refresh()

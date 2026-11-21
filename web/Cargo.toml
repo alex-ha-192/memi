@@ -21,7 +21,7 @@ web-sys = { version = "0.3", features = [
     "Blob", "BlobPropertyBag", "Url", "File", "FileList", "Event", "KeyboardEvent", "MouseEvent",
     "DragEvent", "DataTransfer", "MediaQueryList", "Storage", "Location", "Navigator",
     "CssStyleDeclaration", "DomRect", "VisibilityState", "Headers", "Request", "RequestInit",
-    "Response", "Clipboard",
+    "Response", "Clipboard", "HtmlAnchorElement",
 ] }
 gloo-timers = { version = "0.3", features = ["futures"] }
 serde = { version = "1", features = ["derive"] }

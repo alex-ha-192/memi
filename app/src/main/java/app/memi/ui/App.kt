@@ -156,6 +156,12 @@ private fun Content(vm: AppViewModel) {
     val freshCollapsed by vm.freshCollapsed.collectAsStateWithLifecycle()
     val reminders by vm.birthdayReminders.collectAsStateWithLifecycle()
     val context = androidx.compose.ui.platform.LocalContext.current
+    val saveBackup = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json")
+    ) { uri -> uri?.let { vm.saveBackup(context, it) } }
+    val openBackup = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+    ) { uri -> uri?.let { vm.openBackup(context, it) } }
     val syncBadge = when {
         syncState.problem is app.memi.sync.SyncManager.Problem.NeedsSignIn -> SyncBadge.SignIn
         syncState.busy -> SyncBadge.Syncing
@@ -335,6 +341,11 @@ private fun Content(vm: AppViewModel) {
                 onSync = { themesOpen = false; dialog = Dialog.Sync },
                 reminders = reminders,
                 onReminders = { vm.setBirthdayReminders(context, it) },
+                onSaveBackup = {
+                    themesOpen = false
+                    saveBackup.launch("Memi backup ${java.time.LocalDate.now()}.json")
+                },
+                onOpenBackup = { themesOpen = false; openBackup.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) },
                 modifier = (if (twoPane) Modifier.width(ListPaneWidth) else Modifier.fillMaxWidth())
                     .onGloballyPositioned { panelBounds = it.boundsInRoot() }
                     .navigationBarsPadding(),

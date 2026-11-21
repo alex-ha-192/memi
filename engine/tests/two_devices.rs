@@ -323,3 +323,30 @@ fn the_save_your_key_reminder() {
     assert!(block_on(sync::start_over(&laptop, &drive)));
     assert!(laptop.lock().unwrap().wants_key_nudge(now));
 }
+
+#[test]
+fn a_backup_file_merges_into_another_device() {
+    let phone = device("Pixel 8");
+    let maya = phone.lock().unwrap().change(|d| d.add_person(Person::new("Maya")));
+    let gifts = phone.lock().unwrap().snapshot().collections.iter().find(|c| c.person_uid.as_deref() == Some(maya.as_str())).unwrap().uid.clone();
+    phone.lock().unwrap().change(|d| d.add_note(&maya, &gifts, "Blue mug", None));
+    phone.lock().unwrap().change(|d| d.add_note(&maya, &gifts, "Pottery class", None));
+    let file = phone.lock().unwrap().export_file();
+
+    // Another device with someone of its own: the backup adds to it, nothing is lost.
+    let laptop = device("Linux computer");
+    laptop.lock().unwrap().change(|d| d.add_person(Person::new("Sam")));
+    let got = laptop.lock().unwrap().import_file(&file).unwrap();
+    assert_eq!((got.new_people, got.new_notes, got.changed), (1, 2, true));
+    assert_eq!(got.summary(), "Added 1 person and 2 notes.");
+    let names: Vec<String> = laptop.lock().unwrap().snapshot().people.iter().map(|p| p.name.clone()).collect();
+    assert!(names.contains(&"Maya".into()) && names.contains(&"Sam".into()), "{names:?}");
+
+    // Importing it again changes nothing.
+    let again = laptop.lock().unwrap().import_file(&file).unwrap();
+    assert!(!again.changed);
+    assert_eq!(again.summary(), "Everything in that backup was already here.");
+
+    // Not a backup: a clear error, nothing touched.
+    assert!(laptop.lock().unwrap().import_file(b"hello").is_err());
+}

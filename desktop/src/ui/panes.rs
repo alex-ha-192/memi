@@ -668,7 +668,16 @@ impl MemiView {
                 .child(card_title("Sync", c.ink))
                 .child(label(sync_detail, c.muted).flex_1().truncate())
                 .child(icon("chevron-right", 17., c.muted))
-                .on_click(cx.listener(|this, _, _, cx| { this.theme_open = false; this.overlay = Some(Overlay::Sync); cx.notify(); })));
+                .on_click(cx.listener(|this, _, _, cx| { this.theme_open = false; this.overlay = Some(Overlay::Sync); cx.notify(); })))
+            .child(div().flex().flex_col().gap(px(8.))
+                .child(div().flex().items_baseline().justify_between()
+                    .child(card_title("Backup file", c.ink))
+                    .child(caption("Not encrypted", c.muted)))
+                .child(div().flex().gap(px(8.))
+                    .child(secondary_button("backup-save", "Save a backup", false, c).flex_1()
+                        .on_click(cx.listener(|this, _, _, cx| { this.theme_open = false; this.export_backup(cx); })))
+                    .child(secondary_button("backup-open", "Open a backup", false, c).flex_1()
+                        .on_click(cx.listener(|this, _, _, cx| { this.theme_open = false; this.import_backup(cx); })))));
         // Clicking anywhere outside closes the panel.
         div().absolute().inset_0()
             .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| { this.theme_open = false; cx.notify(); }))

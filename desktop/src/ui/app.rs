@@ -424,6 +424,45 @@ impl MemiView {
         }
     }
 
+    /// Saves everything, photos included, to a file they choose.
+    pub fn export_backup(&mut self, cx: &mut Context<Self>) {
+        let bytes = self.memi.with(|m| m.export_file());
+        let name = format!("Memi backup {}.json", memi_core::dates::iso(memi_core::dates::today()));
+        let dialog = rfd::AsyncFileDialog::new().set_title("Save a backup").set_file_name(&name).add_filter("Memi backup", &["json"]);
+        cx.spawn(async move |this, cx| {
+            let Some(f) = dialog.save_file().await else { return };
+            let result = std::fs::write(f.path(), &bytes);
+            let _ = this.update(cx, |this, cx| {
+                let msg = match result {
+                    Ok(()) => "Backup saved. It isn't encrypted, so keep it somewhere private.".to_string(),
+                    Err(e) => format!("Couldn't save the backup: {e}"),
+                };
+                this.toast(msg, None, cx);
+                cx.notify();
+            });
+        }).detach();
+    }
+
+    /// Merges a backup file into what's here.
+    pub fn import_backup(&mut self, cx: &mut Context<Self>) {
+        let dialog = rfd::AsyncFileDialog::new().set_title("Open a backup").add_filter("Memi backup", &["json"]);
+        cx.spawn(async move |this, cx| {
+            let Some(f) = dialog.pick_file().await else { return };
+            let bytes = std::fs::read(f.path());
+            let _ = this.update(cx, |this, cx| {
+                let msg = match bytes.map_err(anyhow::Error::from).and_then(|b| this.memi.with(|m| m.import_file(&b))) {
+                    Ok(got) => {
+                        if got.changed { this.reload(); this.schedule_push(cx); }
+                        got.summary()
+                    }
+                    Err(e) => format!("Couldn't open that backup: {e}"),
+                };
+                this.toast(msg, None, cx);
+                cx.notify();
+            });
+        }).detach();
+    }
+
     pub fn pick_photo(&mut self, cx: &mut Context<Self>) {
         if let Some(Overlay::EditPerson(e)) = &mut self.overlay { e.busy = true; e.error = None; }
         cx.notify();

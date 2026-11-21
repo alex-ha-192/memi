@@ -311,6 +311,14 @@ impl Engine {
         Ok(Arc::new(Engine { memi: Arc::new(Mutex::new(Memi::new(snapshot, sync, platform))), photo_dir }))
     }
 
+    /// Everything, photos included, as a backup file the person keeps (not encrypted).
+    pub fn export_file(&self) -> Vec<u8> { self.memi.with(|m| m.export_file()) }
+
+    /// Merges a backup file into what's here. Returns a line to show.
+    pub fn import_file(&self, bytes: Vec<u8>) -> Result<String, MemiError> {
+        Ok(self.memi.with(|m| m.import_file(&bytes))?.summary())
+    }
+
     /// Everyone, their categories and notes, in the order the screens show them.
     pub fn everything(&self) -> Everything {
         self.memi.with(|m| {

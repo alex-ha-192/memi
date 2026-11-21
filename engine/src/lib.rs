@@ -14,5 +14,5 @@ pub mod native_drive;
 pub mod sqlite;
 
 pub use data::Data;
-pub use memi::{Asking, Join, Memi, PhotoChange, Platform, Problem, SyncSettings, SyncStatus};
+pub use memi::{Asking, Imported, Join, Memi, PhotoChange, Platform, Problem, SyncSettings, SyncStatus};
 pub use memi_core as core;

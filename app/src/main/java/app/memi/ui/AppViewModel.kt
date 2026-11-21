@@ -143,6 +143,28 @@ class AppViewModel(private val repo: Repository, private val prefs: ThemePrefs) 
 
     fun setAppearance(a: Appearance) = viewModelScope.launch { prefs.setAppearance(a) }
 
+    // --- Backup file ------------------------------------------------------------------------
+
+    fun saveBackup(context: android.content.Context, uri: android.net.Uri) = viewModelScope.launch {
+        val result = runCatching {
+            val bytes = repo.exportFile()
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                context.contentResolver.openOutputStream(uri, "wt")!!.use { it.write(bytes) }
+            }
+        }
+        showToast(result.fold({ "Backup saved. It isn't encrypted, so keep it somewhere private." }, { "Couldn't save the backup: ${it.message}" }))
+    }
+
+    fun openBackup(context: android.content.Context, uri: android.net.Uri) = viewModelScope.launch {
+        val result = runCatching {
+            val bytes = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                context.contentResolver.openInputStream(uri)!!.use { it.readBytes() }
+            }
+            repo.importFile(bytes)
+        }
+        showToast(result.getOrElse { "Couldn't open that backup: ${it.message}" })
+    }
+
     // --- Toasts -----------------------------------------------------------------------------
 
     fun showToast(message: String, actionLabel: String? = null, action: (() -> Unit)? = null) {

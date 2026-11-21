@@ -104,6 +104,32 @@ pub fn blob_url(bytes: &[u8]) -> Option<String> {
     web_sys::Url::create_object_url_with_blob(&blob).ok()
 }
 
+/// Saves `bytes` as a download called `name`.
+pub fn download(name: &str, bytes: &[u8], mime: &str) -> bool {
+    use wasm_bindgen::JsCast;
+    let parts = js_sys::Array::new();
+    parts.push(&js_sys::Uint8Array::from(bytes));
+    let opts = web_sys::BlobPropertyBag::new();
+    opts.set_type(mime);
+    let Ok(blob) = web_sys::Blob::new_with_u8_array_sequence_and_options(&parts, &opts) else { return false };
+    let Ok(url) = web_sys::Url::create_object_url_with_blob(&blob) else { return false };
+    let doc = web_sys::window().and_then(|w| w.document());
+    let Some(a) = doc.and_then(|d| d.create_element("a").ok()).and_then(|e| e.dyn_into::<web_sys::HtmlAnchorElement>().ok()) else { return false };
+    a.set_href(&url);
+    a.set_download(name);
+    a.click();
+    // Give the browser a moment to start the download before letting go of the data.
+    let u = url.clone();
+    wasm_bindgen_futures::spawn_local(async move { gloo_timers::future::TimeoutFuture::new(30_000).await; revoke_url(&u) });
+    true
+}
+
+/// The contents of a file the person picked.
+pub async fn file_bytes(f: &web_sys::File) -> anyhow::Result<Vec<u8>> {
+    let buf = wasm_bindgen_futures::JsFuture::from(f.array_buffer()).await.map_err(|_| anyhow::anyhow!("couldn't read the file"))?;
+    Ok(js_sys::Uint8Array::new(&buf).to_vec())
+}
+
 pub fn revoke_url(url: &str) {
     let _ = web_sys::Url::revoke_object_url(url);
 }

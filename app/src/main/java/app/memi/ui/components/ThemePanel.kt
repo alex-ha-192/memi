@@ -60,6 +60,8 @@ fun ThemePanel(
     reminders: Set<Int>,
     onReminders: (Set<Int>) -> Unit,
     modifier: Modifier = Modifier,
+    onSaveBackup: () -> Unit = {},
+    onOpenBackup: () -> Unit = {},
 ) {
     val colors = Bento.colors
     val modeLabel = when (choice.appearance) {
@@ -126,6 +128,16 @@ fun ThemePanel(
             Spacer(Modifier.width(10.dp))
             Text(syncDetail, style = BentoType.label, color = colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = colors.muted)
+        }
+        Spacer(Modifier.height(16.dp))
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text("Backup file", style = BentoType.cardTitle, color = colors.ink, modifier = Modifier.weight(1f))
+            Text("Not encrypted", style = BentoType.label, color = colors.muted)
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            app.memi.ui.sheets.SecondaryButton("Save a backup", Modifier.weight(1f), onClick = onSaveBackup)
+            app.memi.ui.sheets.SecondaryButton("Open a backup", Modifier.weight(1f), onClick = onOpenBackup)
         }
     }
 }

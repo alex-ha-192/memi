@@ -32,6 +32,29 @@ pub trait Platform {
     fn device_label(&self) -> String;
 }
 
+/// What importing a backup file did.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Imported {
+    pub new_people: u32,
+    pub new_notes: u32,
+    /// Anything at all changed here (new, edited or deleted).
+    pub changed: bool,
+}
+
+impl Imported {
+    /// A line for a toast.
+    pub fn summary(&self) -> String {
+        let n = |k: u32, one: &str, many: &str| format!("{k} {}", if k == 1 { one } else { many });
+        match (self.new_people, self.new_notes, self.changed) {
+            (_, _, false) => "Everything in that backup was already here.".into(),
+            (0, 0, true) => "Brought in the backup's edits.".into(),
+            (0, t, _) => format!("Added {}.", n(t, "note", "notes")),
+            (p, 0, _) => format!("Added {}.", n(p, "person", "people")),
+            (p, t, _) => format!("Added {} and {}.", n(p, "person", "people"), n(t, "note", "notes")),
+        }
+    }
+}
+
 /// Sync settings kept on the device, the same on every platform.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -215,6 +238,29 @@ impl<P: Platform> Memi<P> {
             self.saved();
         }
         m.remote_changed || doc.legacy
+    }
+
+    /// Everything, photos included, as a backup file the person keeps. Not encrypted: it's
+    /// for them, and opens in any Memi (or a text editor).
+    pub fn export_file(&self) -> Vec<u8> { backup::export(&self.data.snap, |p| self.photo(p)) }
+
+    /// Merges a backup file into what's here, item by item, the same way sync does: nothing here
+    /// is lost unless the file records a later edit or deletion of it.
+    pub fn import_file(&mut self, bytes: &[u8]) -> Result<Imported> {
+        let doc = backup::import(bytes)?;
+        let uids: std::collections::HashSet<String> = self.data.snap.people.iter().map(|p| p.uid.clone())
+            .chain(self.data.snap.notes.iter().map(|n| n.uid.clone())).collect();
+        let changed_before = self.version;
+        self.merge_in(doc);
+        let snap = &self.data.snap;
+        let imported = Imported {
+            new_people: snap.people.iter().filter(|p| !uids.contains(&p.uid)).count() as u32,
+            new_notes: snap.notes.iter().filter(|n| !uids.contains(&n.uid)).count() as u32,
+            changed: self.version != changed_before,
+        };
+        // Sync's copy needs the imported things too.
+        if imported.changed && self.sync.enabled { self.update_sync(|s| s.dirty = true); }
+        Ok(imported)
     }
 
     pub fn turn_off_sync(&mut self, forget_key: bool) {
