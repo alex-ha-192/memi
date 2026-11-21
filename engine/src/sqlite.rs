@@ -16,6 +16,9 @@ pub struct SqliteStore {
     db: Connection,
     /// What's in the file now, by uid, so saving can skip what hasn't changed.
     saved: Snapshot,
+    /// Row ids in the file by uid (people, categories, notes), kept between saves instead of
+    /// being read back each time. None until the first save, and after a save fails.
+    rows: Option<[HashMap<String, i64>; 3]>,
 }
 
 const SCHEMA: &str = r#"
@@ -177,7 +180,7 @@ impl SqliteStore {
         let db = Connection::open(path)?;
         db.pragma_update(None, "foreign_keys", true)?;
         db.pragma_update(None, "journal_mode", "WAL")?;
-        let mut s = SqliteStore { db, saved: Snapshot::default() };
+        let mut s = SqliteStore { db, saved: Snapshot::default(), rows: None };
         s.prepare()?;
         s.saved = s.snapshot()?;
         Ok(s)
@@ -186,7 +189,7 @@ impl SqliteStore {
     pub fn in_memory() -> Result<Self> {
         let db = Connection::open_in_memory()?;
         db.pragma_update(None, "foreign_keys", true)?;
-        let mut s = SqliteStore { db, saved: Snapshot::default() };
+        let mut s = SqliteStore { db, saved: Snapshot::default(), rows: None };
         s.prepare()?;
         Ok(s)
     }
@@ -323,6 +326,25 @@ impl SqliteStore {
 
     /// Writes `s`, touching only the records that differ from what's in the file.
     pub fn write(&mut self, s: &Snapshot) -> Result<()> {
+        let rows = match self.rows.take() { Some(r) => r, None => self.row_ids()? };
+        let rows = self.write_with(s, rows)?;
+        self.rows = Some(rows);
+        self.saved = s.clone();
+        Ok(())
+    }
+
+    fn row_ids(&self) -> Result<[HashMap<String, i64>; 3]> {
+        let read = |table: &str| -> Result<HashMap<String, i64>> {
+            let mut st = self.db.prepare(&format!("SELECT uid, id FROM {table}"))?;
+            let rows = st.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))?;
+            Ok(rows.collect::<rusqlite::Result<HashMap<_, _>>>()?)
+        };
+        Ok([read("people")?, read("collections")?, read("notes")?])
+    }
+
+    fn write_with(&mut self, s: &Snapshot, rows: [HashMap<String, i64>; 3]) -> Result<[HashMap<String, i64>; 3]> {
+        let [mut person_id, mut col_id, mut note_id] = rows;
+        let mut inserted = false;
         let before = &self.saved;
         let old_people: HashMap<&str, &Person> = before.people.iter().map(|p| (p.uid.as_str(), p)).collect();
         let old_cols: HashMap<&str, &Collection> = before.collections.iter().map(|c| (c.uid.as_str(), c)).collect();
@@ -333,91 +355,106 @@ impl SqliteStore {
         let keep: std::collections::HashSet<&str> = s.people.iter().map(|p| p.uid.as_str())
             .chain(s.collections.iter().map(|c| c.uid.as_str()))
             .chain(s.notes.iter().map(|n| n.uid.as_str())).collect();
-        for n in before.notes.iter().filter(|n| !keep.contains(n.uid.as_str())) { tx.execute("DELETE FROM notes WHERE uid = ?", [&n.uid])?; }
-        for c in before.collections.iter().filter(|c| !keep.contains(c.uid.as_str())) { tx.execute("DELETE FROM collections WHERE uid = ?", [&c.uid])?; }
-        for p in before.people.iter().filter(|p| !keep.contains(p.uid.as_str())) { tx.execute("DELETE FROM people WHERE uid = ?", [&p.uid])?; }
+        let mut deleted = false;
+        for n in before.notes.iter().filter(|n| !keep.contains(n.uid.as_str())) { tx.prepare_cached("DELETE FROM notes WHERE uid = ?")?.execute([&n.uid])?; note_id.remove(&n.uid); deleted = true; }
+        for c in before.collections.iter().filter(|c| !keep.contains(c.uid.as_str())) { tx.prepare_cached("DELETE FROM collections WHERE uid = ?")?.execute([&c.uid])?; col_id.remove(&c.uid); deleted = true; }
+        for p in before.people.iter().filter(|p| !keep.contains(p.uid.as_str())) { tx.prepare_cached("DELETE FROM people WHERE uid = ?")?.execute([&p.uid])?; person_id.remove(&p.uid); deleted = true; }
 
-        // Row ids in the file, by uid (the engine's own ids may differ for new records).
-        let row_ids = |tx: &rusqlite::Transaction, table: &str| -> Result<HashMap<String, i64>> {
-            let mut st = tx.prepare(&format!("SELECT uid, id FROM {table}"))?;
-            let rows = st.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))?;
-            Ok(rows.collect::<rusqlite::Result<HashMap<_, _>>>()?)
-        };
-
-        let mut person_id = row_ids(&tx, "people")?;
+        // Row ids in the file (the engine's own ids may differ for new records) come from `rows`.
         for p in &s.people {
-            if old_people.get(p.uid.as_str()).is_some_and(|o| **o == Person { id: o.id, ..p.clone() }) { continue; }
+            if old_people.get(p.uid.as_str()).is_some_and(|o| same_person(o, p)) { continue; }
             match person_id.get(&p.uid) {
                 Some(id) => {
-                    tx.execute(
+                    tx.prepare_cached(
                         "UPDATE people SET name=?, relationship=?, photoPath=?, birthdayMonth=?, birthdayDay=?, birthYear=?, toneIndex=?, pinned=?, sortOrder=?, createdAt=?, updatedAt=? WHERE id=?",
-                        params![p.name, p.relationship, p.photo_path, p.birthday_month, p.birthday_day, p.birth_year, p.tone_index, p.pinned, p.sort_order, p.created_at, p.updated_at, id],
-                    )?;
+                    )?.execute(params![p.name, p.relationship, p.photo_path, p.birthday_month, p.birthday_day, p.birth_year, p.tone_index, p.pinned, p.sort_order, p.created_at, p.updated_at, id])?;
+                    // If the edit time didn't change, the trigger stamped one: put it back.
+                    tx.prepare_cached("UPDATE people SET updatedAt = ? WHERE id = ? AND updatedAt != ?")?.execute(params![p.updated_at, id, p.updated_at])?;
                 }
                 None => {
-                    tx.execute(
+                    tx.prepare_cached(
                         "INSERT INTO people (uid, name, relationship, photoPath, birthdayMonth, birthdayDay, birthYear, toneIndex, pinned, sortOrder, createdAt, updatedAt)
                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        params![p.uid, p.name, p.relationship, p.photo_path, p.birthday_month, p.birthday_day, p.birth_year, p.tone_index, p.pinned, p.sort_order, p.created_at, p.updated_at],
-                    )?;
+                    )?.execute(params![p.uid, p.name, p.relationship, p.photo_path, p.birthday_month, p.birthday_day, p.birth_year, p.tone_index, p.pinned, p.sort_order, p.created_at, p.updated_at])?;
                     person_id.insert(p.uid.clone(), tx.last_insert_rowid());
+                    inserted = true;
                 }
             }
         }
 
-        let mut col_id = row_ids(&tx, "collections")?;
         for c in &s.collections {
             let Some(pid) = c.person_uid.as_ref().and_then(|u| person_id.get(u)).copied() else { continue };
-            if old_cols.get(c.uid.as_str()).is_some_and(|o| o.updated_at == c.updated_at && o.person_uid == c.person_uid && **o == Collection { id: o.id, person_id: o.person_id, ..c.clone() }) { continue; }
+            if old_cols.get(c.uid.as_str()).is_some_and(|o| same_collection(o, c)) { continue; }
             match col_id.get(&c.uid) {
                 Some(id) => {
-                    tx.execute(
+                    tx.prepare_cached(
                         "UPDATE collections SET personId=?, name=?, kind=?, slot=?, sortOrder=?, occasion=?, occasionDay=?, yearly=?, updatedAt=? WHERE id=?",
-                        params![pid, c.name, c.kind, c.slot, c.sort_order, c.occasion, c.occasion_day, c.yearly, c.updated_at, id],
-                    )?;
+                    )?.execute(params![pid, c.name, c.kind, c.slot, c.sort_order, c.occasion, c.occasion_day, c.yearly, c.updated_at, id])?;
+                    tx.prepare_cached("UPDATE collections SET updatedAt = ? WHERE id = ? AND updatedAt != ?")?.execute(params![c.updated_at, id, c.updated_at])?;
                 }
                 None => {
-                    tx.execute(
+                    tx.prepare_cached(
                         "INSERT INTO collections (uid, personId, name, kind, slot, sortOrder, occasion, occasionDay, yearly, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        params![c.uid, pid, c.name, c.kind, c.slot, c.sort_order, c.occasion, c.occasion_day, c.yearly, c.updated_at],
-                    )?;
+                    )?.execute(params![c.uid, pid, c.name, c.kind, c.slot, c.sort_order, c.occasion, c.occasion_day, c.yearly, c.updated_at])?;
                     col_id.insert(c.uid.clone(), tx.last_insert_rowid());
+                    inserted = true;
                 }
             }
         }
 
-        let note_id = row_ids(&tx, "notes")?;
         for n in &s.notes {
             let (Some(pid), Some(cid)) = (person_id.get(&n.person_uid).copied(), col_id.get(&n.collection_uid).copied()) else { continue };
-            if old_notes.get(n.uid.as_str()).is_some_and(|o| **o == Note { id: o.id, person_id: o.person_id, collection_id: o.collection_id, ..n.clone() }) { continue; }
+            if old_notes.get(n.uid.as_str()).is_some_and(|o| same_note(o, n)) { continue; }
             match note_id.get(&n.uid) {
                 Some(id) => {
-                    tx.execute(
+                    tx.prepare_cached(
                         "UPDATE notes SET personId=?, collectionId=?, text=?, mentionedAt=?, firstMentionedAt=?, mentionCount=?, dueAt=?, status=?, outcome=?, doneAt=?, createdAt=?, sortOrder=?, updatedAt=? WHERE id=?",
-                        params![pid, cid, n.text, n.mentioned_at, n.first_mentioned_at, n.mention_count, n.due_at, n.status, n.outcome, n.done_at, n.created_at, n.sort_order, n.updated_at, id],
-                    )?;
+                    )?.execute(params![pid, cid, n.text, n.mentioned_at, n.first_mentioned_at, n.mention_count, n.due_at, n.status, n.outcome, n.done_at, n.created_at, n.sort_order, n.updated_at, id])?;
                     // If only the category changed, the edit time didn't, and the trigger stamped it: put it back.
-                    tx.execute("UPDATE notes SET updatedAt = ? WHERE id = ? AND updatedAt != ?", params![n.updated_at, id, n.updated_at])?;
+                    tx.prepare_cached("UPDATE notes SET updatedAt = ? WHERE id = ? AND updatedAt != ?")?.execute(params![n.updated_at, id, n.updated_at])?;
                 }
                 None => {
-                    tx.execute(
+                    tx.prepare_cached(
                         "INSERT INTO notes (uid, personId, collectionId, text, mentionedAt, firstMentionedAt, mentionCount, dueAt, status, outcome, doneAt, createdAt, sortOrder, updatedAt)
                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        params![n.uid, pid, cid, n.text, n.mentioned_at, n.first_mentioned_at, n.mention_count, n.due_at, n.status, n.outcome, n.done_at, n.created_at, n.sort_order, n.updated_at],
-                    )?;
+                    )?.execute(params![n.uid, pid, cid, n.text, n.mentioned_at, n.first_mentioned_at, n.mention_count, n.due_at, n.status, n.outcome, n.done_at, n.created_at, n.sort_order, n.updated_at])?;
+                    note_id.insert(n.uid.clone(), tx.last_insert_rowid());
+                    inserted = true;
                 }
             }
         }
-        // The same goes for people and categories whose only change was to be stamped by a trigger.
-        for p in &s.people { tx.execute("UPDATE people SET updatedAt = ? WHERE uid = ? AND updatedAt != ?", params![p.updated_at, p.uid, p.updated_at])?; }
-        for c in &s.collections { tx.execute("UPDATE collections SET updatedAt = ? WHERE uid = ? AND updatedAt != ?", params![c.updated_at, c.uid, c.updated_at])?; }
-
-        tx.execute("DELETE FROM tombstones", [])?;
-        for t in &s.tombstones {
-            tx.execute("INSERT OR REPLACE INTO tombstones (uid, deletedAt) VALUES (?, ?)", params![t.uid, t.deleted_at])?;
+        // Deleting rows adds tombstones by trigger, and inserting revives them, so rewrite the
+        // list whenever either could have touched it.
+        if deleted || inserted || s.tombstones != before.tombstones {
+            tx.execute("DELETE FROM tombstones", [])?;
+            for t in &s.tombstones {
+                tx.prepare_cached("INSERT OR REPLACE INTO tombstones (uid, deletedAt) VALUES (?, ?)")?.execute(params![t.uid, t.deleted_at])?;
+            }
         }
         tx.commit()?;
-        self.saved = s.clone();
-        Ok(())
+        Ok([person_id, col_id, note_id])
     }
+}
+
+// Whether a record needs writing: every field but the row ids, which mean nothing in the file.
+// Destructured in full, so a new field can't be forgotten.
+fn same_person(a: &Person, b: &Person) -> bool {
+    let Person { id: _, uid, name, relationship, photo_path, birthday_month, birthday_day, birth_year, tone_index, pinned, sort_order, created_at, updated_at } = a;
+    *uid == b.uid && *name == b.name && *relationship == b.relationship && *photo_path == b.photo_path && *birthday_month == b.birthday_month
+        && *birthday_day == b.birthday_day && *birth_year == b.birth_year && *tone_index == b.tone_index && *pinned == b.pinned
+        && *sort_order == b.sort_order && *created_at == b.created_at && *updated_at == b.updated_at
+}
+
+fn same_collection(a: &Collection, b: &Collection) -> bool {
+    let Collection { id: _, uid, person_id: _, person_uid, name, kind, slot, sort_order, occasion, occasion_day, yearly, updated_at } = a;
+    *uid == b.uid && *person_uid == b.person_uid && *name == b.name && *kind == b.kind && *slot == b.slot && *sort_order == b.sort_order
+        && *occasion == b.occasion && *occasion_day == b.occasion_day && *yearly == b.yearly && *updated_at == b.updated_at
+}
+
+fn same_note(a: &Note, b: &Note) -> bool {
+    let Note { id: _, uid, person_id: _, person_uid, collection_id: _, collection_uid, text, mentioned_at, first_mentioned_at, mention_count,
+        due_at, status, outcome, done_at, created_at, updated_at, sort_order } = a;
+    *uid == b.uid && *person_uid == b.person_uid && *collection_uid == b.collection_uid && *text == b.text && *mentioned_at == b.mentioned_at
+        && *first_mentioned_at == b.first_mentioned_at && *mention_count == b.mention_count && *due_at == b.due_at && *status == b.status
+        && *outcome == b.outcome && *done_at == b.done_at && *created_at == b.created_at && *updated_at == b.updated_at && *sort_order == b.sort_order
 }
