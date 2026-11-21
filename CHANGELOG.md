@@ -2,6 +2,27 @@
 
 Every release of Memi, newest first. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/). Releases 0.1 to 0.4 came before this repository; their entries are reconstructed from the project's notes and have no exact dates.
 
+## [1.0.0] — 2026-11-21
+
+The first full release. Sync can now go to your own WebDAV server or a folder as well as Google Drive, you can keep a backup file, the web app works offline, and people get their own colour.
+
+### Added
+- Sync through WebDAV (Nextcloud, ownCloud, a NAS…) or a folder that another app keeps in step (Syncthing, Dropbox, OneDrive, a network share), as well as Google Drive. Desktop and Android offer all three; the web app offers Google Drive and WebDAV. Everything is encrypted on your device first, as before, and a new device still joins with the six-digit code or the recovery key.
+- Backup files: Settings › Backup file › Save a backup writes everything, photos included, to a file you choose; Open a backup merges one back in, adding what's missing without losing anything. The file isn't encrypted, and the apps say so.
+- A reminder on Home to save your recovery key once sync is on, until you say you have ("Not now" waits two weeks). On Android it's skipped when your key already follows your screen lock to a new phone.
+- The web app opens without a connection: your browser keeps a copy of the app itself.
+- Desktop: screen readers (Orca, Narrator) can now find and name the buttons, people, notes and categories.
+
+### Changed
+- A new look for people: each person's card is tinted in their own colour, with their relationship and how many things are open beneath their name. The colours keep text readable (4.5:1 or better) in every theme, light and dark. On phones, Everyone is now a list of these cards.
+- First launch: "Yes, on another device" and "Turn on sync" open Sync, where you pick Google Drive, WebDAV or a folder.
+- Saving is much quicker with a lot in Memi: an edit with 6,000 notes saves in about 5 ms instead of 70 ms on Android and desktop.
+- Smaller downloads: the Android app's libraries are compressed in the APK, and the desktop app is fully optimised.
+- Dates use the jiff library instead of chrono, which is no longer maintained.
+
+### Fixed
+- The privacy policy no longer scrolls sideways on phones.
+
 ## [0.6.3] — 2026-11-20
 
 ### Changed
@@ -105,7 +126,10 @@ A new device now asks whether you've used Memi before, Memi has a brighter icon 
 ### Added
 - The first Android app: people, with their photo and birthday, and gift ideas, plans and notes for each, marked done as a hit or a miss.
 
-[Unreleased]: https://github.com/alex-ha-192/memi/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/alex-ha-192/memi/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/alex-ha-192/memi/compare/v0.6.3...v1.0.0
+[0.6.3]: https://github.com/alex-ha-192/memi/compare/v0.6.2...v0.6.3
+[0.6.2]: https://github.com/alex-ha-192/memi/compare/v0.6.0...v0.6.2
 [0.6.0]: https://github.com/alex-ha-192/memi/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/alex-ha-192/memi/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/alex-ha-192/memi/compare/v0.5.0...v0.5.1

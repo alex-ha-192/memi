@@ -11,6 +11,8 @@ android {
     defaultConfig {
         applicationId = "app.memi"
         minSdk = 26
+        // Memi is in English; leave out the other languages the libraries bring along.
+        resourceConfigurations += listOf("en")
         targetSdk = 35
         // Release builds from CI pass -PmemiVersion=1.2.3 (from the git tag), so every release
         // has a higher versionCode and updates install over the old one (Obtainium relies on this).
@@ -56,6 +58,11 @@ android {
     }
     buildFeatures {
         compose = true
+    }
+    // The APK is downloaded directly (GitHub, Obtainium), so keep it small: compress the Rust
+    // libraries in it (Android unpacks them once, at install) rather than storing them as they are.
+    packaging {
+        jniLibs { useLegacyPackaging = true }
     }
 }
 

@@ -72,6 +72,11 @@
     <keyword>notes</keyword>
   </keywords>
   <releases>
+    <release version="1.0.0" date="2026-11-21">
+      <description>
+        <p>The first full release. Sync can now go to your own WebDAV server (such as Nextcloud) or a folder that Syncthing or Dropbox keeps in step, as well as Google Drive. You can save and open backup files, people get their own colour, saving is much quicker with a lot in Memi, and screen readers can find their way around.</p>
+      </description>
+    </release>
     <release version="0.6.3" date="2026-11-20">
       <description>
         <p>Sync is easier to find: Home now shows whether you're synced, and one click opens Sync. The palette button is now Settings.</p>
