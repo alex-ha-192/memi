@@ -19,6 +19,7 @@ Untagged builds are numbered `0.0.<run>`, so test installers upgrade each other 
 
 1. Add a `<release version="X.Y.Z" date="YYYY-MM-DD">` entry with notes to `desktop/packaging/app.yourmemi.YourMemi.metainfo.xml` (it ships inside the AppImage).
 2. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`. Or, without pushing a tag, run the Build workflow on main by hand with the version (`gh workflow run build.yml --ref main -f release=X.Y.Z`, or Actions › Build › Run workflow): the release creates the tag on that commit.
+3. Publish the web app from the same commit: `gh workflow run web.yml --ref main -f deploy=true` (or Actions › Web app › Run workflow, with "Publish" ticked). Pushing to `main` builds and checks the web app but never publishes it.
 
 The tag sets the version everywhere (Android versionName and versionCode, the .exe, the .msi and the AppImage). The Release job attaches only `YourMemi.apk`, `YourMemi.msi`, `YourMemi-x86_64.AppImage` and its `.zsync` file, with notes giving the Android certificate fingerprint and SHA-256 checksums. File names never change, so `https://github.com/alex-ha-192/memi/releases/latest/download/<name>` always serves the newest release; the website links there. Obtainium picks the APK up from there, and AppImage updaters the AppImage.
 
@@ -67,4 +68,4 @@ Obtainium reads GitHub Releases directly, so nothing else is needed. The website
 
 ## Web app
 
-`web/` is built with [Trunk](https://trunkrs.dev) by `.github/workflows/web.yml` on every change to `web/`, `engine/` or `core/`, and deployed from `main` to the Cloudflare Pages project `memi-web`, served at `memi.yourmemi.app` (Pages › memi-web › Custom domains). Each build is also pushed to the `ci-web` branch. Its headers (including a strict Content-Security-Policy that allows only Google's sign-in and Drive) are in `web/public/_headers`. To try it locally: `cd web && trunk serve`.
+`web/` is built with [Trunk](https://trunkrs.dev) by `.github/workflows/web.yml` on every change to `web/`, `engine/` or `core/`, and pushed to the `ci-web` branch for checking. It's published to the Cloudflare Pages project `memi-web`, served at `memi.yourmemi.app` (Pages › memi-web › Custom domains), only when the workflow is started by hand with `deploy` ticked, as step 3 of a release. Its headers (including a strict Content-Security-Policy that allows only Google's sign-in and Drive) are in `web/public/_headers`. To try it locally: `cd web && trunk serve`.
