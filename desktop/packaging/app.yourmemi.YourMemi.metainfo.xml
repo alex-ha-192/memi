@@ -72,6 +72,11 @@
     <keyword>notes</keyword>
   </keywords>
   <releases>
+    <release version="1.1.0" date="2026-11-21">
+      <description>
+        <p>The apps now match each other. On Android you can remove a person's photo. The web app can reorder people, categories and notes from their menus, place a photo in its frame, and remind you of birthdays.</p>
+      </description>
+    </release>
     <release version="1.0.1" date="2026-11-21">
       <description>
         <p>Choose each person's colour from their menu, from your theme's eight person colours. On Android, pressing and holding to open a menu no longer also opens the item.</p>

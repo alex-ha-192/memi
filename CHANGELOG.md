@@ -2,6 +2,19 @@
 
 Every release of Memi, newest first. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/). Releases 0.1 to 0.4 came before this repository; their entries are reconstructed from the project's notes and have no exact dates.
 
+## [1.1.0] — 2026-11-21
+
+The apps now match each other: whatever you can do in one, you can do in the others, with controls that suit each one.
+
+### Added
+- Android: remove a person's photo from their editor (Remove photo, beside Adjust crop).
+- Web app: move people, categories and notes earlier or later from their ⋯ menu, as you would by dragging in the apps.
+- Web app: place a new photo in its frame before using it, by dragging, pinching, the wheel, the zoom slider or the arrow keys.
+- Web app: birthday reminders while the tab is open (Settings › Birthday reminders), on the day, the day before or a week before.
+
+### Changed
+- Web app: when Google sign-in lapses, Memi reconnects by itself where it can; otherwise the sync chip says Reconnect, and one tap fixes it.
+
 ## [1.0.1] — 2026-11-21
 
 ### Added
@@ -136,6 +149,7 @@ A new device now asks whether you've used Memi before, Memi has a brighter icon 
 - The first Android app: people, with their photo and birthday, and gift ideas, plans and notes for each, marked done as a hit or a miss.
 
 [Unreleased]: https://github.com/alex-ha-192/memi/compare/v1.0.1...HEAD
+[1.1.0]: https://github.com/alex-ha-192/memi/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/alex-ha-192/memi/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/alex-ha-192/memi/compare/v0.6.3...v1.0.0
 [0.6.3]: https://github.com/alex-ha-192/memi/compare/v0.6.2...v0.6.3
