@@ -13,6 +13,7 @@ use crate::{js, sync};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use memi_engine::core::model::{outcome, status, Person};
+use memi_engine::Data;
 use wasm_bindgen::prelude::*;
 use widgets::Icon;
 
@@ -172,7 +173,7 @@ fn MenuView() -> impl IntoView {
         let h = web_sys::window().and_then(|w| w.inner_height().ok()).and_then(|v| v.as_f64()).unwrap_or(800.);
         let x = m.x.min(w - 244.).max(8.);
         // Open upwards when there isn't room below.
-        let y = if m.y + 330. > h { (m.y - 330.).max(8.) } else { m.y };
+        let y = if m.y + 430. > h { (m.y - 430.).max(8.) } else { m.y };
         let item = move |label: &'static str, danger: bool, f: Box<dyn Fn()>| view! {
             <button class="menu-item" class:danger=danger on:click=move |_| { close(); f(); }>{label}</button>
         };
@@ -194,6 +195,10 @@ fn MenuView() -> impl IntoView {
                         item("Reopen", false, Box::new(move || a.change(|d| d.reopen(&u1)))).into_any()
                     }}
                     {item("Edit", false, Box::new(move || a.overlay.set(Some(Overlay::EditNote(u4.clone())))))}
+                    {(n.status == status::OPEN).then(|| {
+                        let order: Vec<String> = a.peek(|d| d.open_in(&n.collection_uid).into_iter().map(|x| x.uid).collect());
+                        move_items(order, uid.clone(), |d, u, t| d.place_note(u, t))
+                    })}
                     {others.into_iter().map(|(cu, name)| {
                         let (u, nm) = (u5.clone(), name.clone());
                         view! { <button class="menu-item" on:click=move |_| {
@@ -216,6 +221,7 @@ fn MenuView() -> impl IntoView {
                 view! {
                     {item("Edit", false, Box::new(move || a.overlay.set(Some(Overlay::EditPerson(Some(u1.clone()))))))}
                     {item(if pinned { "Unpin" } else { "Pin to top" }, false, Box::new(move || a.change(|d| d.set_pinned(&u2, !pinned))))}
+                    {move_items(a.peek(|d| d.snap.people.iter().filter(|x| x.pinned == pinned).map(|x| x.uid.clone()).collect()), uid.clone(), |d, u, t| d.place_person(u, t))}
                     // The theme's eight person colours, as the cards they make, with theirs ringed.
                     <div class="tones" role="radiogroup" aria-label="Colour">
                         <span class="caption muted">"Colour"</span>
@@ -245,6 +251,7 @@ fn MenuView() -> impl IntoView {
                 let person = c.person_uid.clone().unwrap_or_default();
                 let (u1, u2) = (uid.clone(), uid.clone());
                 view! {
+                    {move_items(a.peek(|d| d.categories_of(&person).into_iter().map(|x| x.uid).collect()), uid.clone(), |d, u, t| d.place_collection(u, t))}
                     {item("Edit", false, Box::new(move || a.overlay.set(Some(Overlay::EditCategory { person: person.clone(), collection: Some(u1.clone()) }))))}
                     {item("Remove category", true, Box::new(move || a.overlay.set(Some(Overlay::Confirm(Confirm::RemoveCategory(u2.clone()))))))}
                 }.into_any()
@@ -254,6 +261,24 @@ fn MenuView() -> impl IntoView {
             <div class="scrim clear" on:click=move |_| a.menu.set(None) on:contextmenu=move |e| { e.prevent_default(); a.menu.set(None); }></div>
             <div class="menu" style=format!("left:{x}px;top:{y}px")>{items}</div>
         }.into_any()
+    }
+}
+
+/// "Move earlier" and "Move later" in a menu, for whatever can be dragged into order with a mouse
+/// or a finger in the apps: here they work the same on a phone's browser. `order` is the list as
+/// shown; `place` puts the first uid in the second one's place. Each only shows when there's
+/// somewhere to go.
+fn move_items(order: Vec<String>, uid: String, place: fn(&mut Data, &str, &str)) -> impl IntoView {
+    let a = app();
+    let at = order.iter().position(|u| *u == uid);
+    let earlier = at.and_then(|i| i.checked_sub(1)).and_then(|i| order.get(i).cloned());
+    let later = at.and_then(|i| order.get(i + 1).cloned());
+    let button = move |label: &'static str, target: String, uid: String| view! {
+        <button class="menu-item" on:click=move |_| { a.menu.set(None); a.change(|d| place(d, &uid, &target)); }>{label}</button>
+    };
+    view! {
+        {earlier.map(|t| button("Move earlier", t, uid.clone()))}
+        {later.map(|t| button("Move later", t, uid.clone()))}
     }
 }
 
