@@ -11,6 +11,9 @@ OUT=target/kotlin-check
 rm -rf "$OUT" && mkdir -p "$OUT"
 cargo run -q --features bindgen --bin uniffi-bindgen -- generate --library "$LIB" --language kotlin --out-dir "$OUT/src" --no-format
 JNA_JAR=${JNA_JAR:-target/jna-5.17.0.jar}
-[ -f "$JNA_JAR" ] || curl -sSfL -o "$JNA_JAR" https://repo1.maven.org/maven2/net/java/dev/jna/jna/5.17.0/jna-5.17.0.jar
+JNA_PATH=net/java/dev/jna/jna/5.17.0/jna-5.17.0.jar
+# Maven Central has two front doors; if one answers 404 or fails, try the other.
+[ -f "$JNA_JAR" ] || curl -sSfL --retry 3 -o "$JNA_JAR" "https://repo1.maven.org/maven2/$JNA_PATH" \
+  || curl -sSfL --retry 3 -o "$JNA_JAR" "https://repo.maven.apache.org/maven2/$JNA_PATH"
 ${KOTLINC:-kotlinc} -nowarn -cp "$JNA_JAR" -d "$OUT/check.jar" -include-runtime "$OUT/src/app/memi/engine/memi_ffi.kt" tests/kotlin/Check.kt
 java -Djna.library.path=target/debug -cp "$OUT/check.jar:$JNA_JAR" CheckKt
