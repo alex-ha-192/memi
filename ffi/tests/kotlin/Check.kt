@@ -90,7 +90,7 @@ fun main() {
     val e2 = Engine(File(dir2, "memi.db").path, File(dir2, "copy.db").path, File(dir2, "photos").path, File(dir2, "sync.json").path, null, host2)
     e2.setHostFolder(TestFolder(shared))
     e2.connectFolder("content://test/tree/shared", TestFolder(shared))
-    check(e2.status().problem is EngineProblem.NeedsKey, "the second phone asks for the key")
+    check(e2.status().problem is Problem.NeedsKey, "the second phone asks for the key")
     check(e2.useRecoveryKey("", e.recoveryKey()!!), "and the recovery key opens it")
     check(e2.everything().people.map { it.name }.sorted() == listOf("Maya Okafor", "Sam Lee"), "everyone arrives")
     val n2 = e2.addNote(e2.everything().people.first { it.name == "Sam Lee" }.id, e2.everything().collections.first().id, "Board games", null)
