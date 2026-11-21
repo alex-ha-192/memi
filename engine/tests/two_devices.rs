@@ -350,3 +350,68 @@ fn a_backup_file_merges_into_another_device() {
     // Not a backup: a clear error, nothing touched.
     assert!(laptop.lock().unwrap().import_file(b"hello").is_err());
 }
+
+/// The whole journey over a real place: a phone turns sync on, a laptop joins, both edit, both see
+/// everything. `phone_drive` and `laptop_drive` are two connections to the same place.
+#[cfg(feature = "native-drive")]
+fn journey<D: Drive>(phone_drive: &D, laptop_drive: &D) {
+    let phone = device("Pixel 8");
+    let laptop = device("Linux computer");
+    let maya = phone.lock().unwrap().add_person(Person::new("Maya Okafor"), Some(vec![1, 2, 3]));
+    let gifts = phone.lock().unwrap().data().categories_of(&maya)[0].uid.clone();
+    phone.lock().unwrap().change(|d| d.add_note(&maya, &gifts, "Blue mug", None));
+
+    assert!(block_on(sync::connect(&phone, phone_drive)));
+    assert!(block_on(sync::connect(&laptop, laptop_drive)));
+    let asking = laptop.lock().unwrap().status.asking.clone().expect("asking for the key");
+    assert!(block_on(sync::sync_now(&phone, phone_drive)));
+    let join = phone.lock().unwrap().status.joins.first().cloned().expect("a join request");
+    assert_eq!(join.confirm, asking.confirm);
+    block_on(sync::answer_join(&phone, phone_drive, &join.file_id, true)).unwrap();
+    assert!(block_on(sync::check_pairing(&laptop, laptop_drive)).unwrap());
+    {
+        let l = laptop.lock().unwrap();
+        let p = l.data().person(&maya).cloned().unwrap();
+        assert_eq!(l.photo(&p), Some(vec![1, 2, 3]));
+    }
+    assert_eq!(names(&laptop), vec!["Blue mug"]);
+
+    phone.lock().unwrap().change(|d| d.add_note(&maya, &gifts, "Pottery class", None));
+    laptop.lock().unwrap().change(|d| d.add_note(&maya, &gifts, "Signed novel", None));
+    assert!(block_on(sync::sync_now(&phone, phone_drive)));
+    assert!(block_on(sync::sync_now(&laptop, laptop_drive)));
+    assert!(block_on(sync::sync_now(&phone, phone_drive)));
+    assert_eq!(names(&phone), names(&laptop));
+    assert_eq!(names(&phone).len(), 3);
+    assert!(block_on(laptop_drive.list("memi-join-")).unwrap().is_empty(), "requests are cleaned up");
+}
+
+#[cfg(feature = "native-drive")]
+#[test]
+fn syncing_through_a_folder() {
+    use memi_engine::folder_drive::FolderDrive;
+    let dir = tempfile::tempdir().unwrap();
+    let shared = dir.path().join("Memi");
+    journey(&FolderDrive::new(&shared), &FolderDrive::new(&shared));
+    // Only Memi's own encrypted file is left, and no half-written ones.
+    let left: Vec<String> = std::fs::read_dir(&shared).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+    assert_eq!(left, vec!["memi-backup.bin"]);
+}
+
+/// Against a real WebDAV server, when one is given:
+/// MEMI_WEBDAV_URL=http://localhost:8800/Memi/ MEMI_WEBDAV_USER=u MEMI_WEBDAV_PASSWORD=p cargo test --all-features webdav -- --ignored
+#[cfg(feature = "native-drive")]
+#[test]
+#[ignore]
+fn syncing_through_webdav() {
+    use memi_engine::webdav::WebDavDrive;
+    let env = |k: &str| std::env::var(k).unwrap_or_else(|_| panic!("set {k}"));
+    let (url, user, pass) = (env("MEMI_WEBDAV_URL"), env("MEMI_WEBDAV_USER"), env("MEMI_WEBDAV_PASSWORD"));
+    let a = WebDavDrive::new(&url, &user, &pass).unwrap();
+    let b = WebDavDrive::new(&url, &user, &pass).unwrap();
+    journey(&a, &b);
+    // Wrong password: sign in again.
+    let bad = WebDavDrive::new(&url, &user, "nope").unwrap();
+    let e = block_on(bad.find(sync::FILE)).unwrap_err();
+    assert!(e.is::<sync::Unauthorized>(), "{e}");
+}

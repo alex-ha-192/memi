@@ -55,11 +55,34 @@ impl Imported {
     }
 }
 
+/// Where sync keeps its (encrypted) files.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+pub enum Provider {
+    /// Google Drive's hidden app folder (the original, and the default).
+    #[default]
+    Google,
+    /// A WebDAV folder, such as on Nextcloud. The password is kept by each app's secret store.
+    WebDav { url: String, user: String },
+    /// A folder something else keeps the same on each device (Syncthing, Dropbox...). On desktop
+    /// a path; on Android a folder the person picked (a content:// URI).
+    Folder { path: String },
+}
+
+impl Provider {
+    /// How Sync names it: "Google Drive", "WebDAV", "A folder".
+    pub fn title(&self) -> &'static str {
+        match self { Provider::Google => "Google Drive", Provider::WebDav { .. } => "WebDAV", Provider::Folder { .. } => "A folder" }
+    }
+}
+
 /// Sync settings kept on the device, the same on every platform.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SyncSettings {
     pub enabled: bool,
+    /// Where the files go. Older settings files have none, which means Google Drive.
+    pub provider: Provider,
     pub account: Option<String>,
     /// Drive's modifiedTime of the copy last seen, to tell when another device changed it.
     pub remote_version: Option<String>,

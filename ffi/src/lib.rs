@@ -205,7 +205,8 @@ impl From<SyncSettings> for SyncState {
 
 impl From<SyncState> for SyncSettings {
     fn from(s: SyncState) -> Self {
-        SyncSettings { enabled: s.enabled, account: s.account, remote_version: s.remote_version, dirty: s.dirty, last_sync: s.last_sync, key_saved: s.key_saved, key_nudge_after: s.key_nudge_after }
+        // Settings from before 1.0 always meant Google Drive.
+        SyncSettings { enabled: s.enabled, provider: Default::default(), account: s.account, remote_version: s.remote_version, dirty: s.dirty, last_sync: s.last_sync, key_saved: s.key_saved, key_nudge_after: s.key_nudge_after }
     }
 }
 

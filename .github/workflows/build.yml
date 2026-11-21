@@ -194,11 +194,25 @@ jobs:
           workspaces: |
             desktop
             core
+            engine
       - name: System libraries
         run: sudo apt-get update && sudo apt-get install -y libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libvulkan-dev libfontconfig-dev libfreetype-dev libxcb1-dev libx11-xcb-dev
       - name: Tests (shared core)
         working-directory: core
         run: cargo test --release
+      - name: "Tests (engine: storage, and sync over a fake Drive, a folder and a real WebDAV server)"
+        working-directory: engine
+        run: |
+          pip install --quiet wsgidav cheroot
+          mkdir -p /tmp/davroot
+          printf '%s\n' 'host: 127.0.0.1' 'port: 8800' 'provider_mapping: {"/": "/tmp/davroot"}' \
+            'http_authenticator: {domain_controller: null, accept_basic: true, accept_digest: false, default_to_digest: false}' \
+            'simple_dc: {user_mapping: {"*": {"ci": {password: "ci-pass"}}}}' > /tmp/dav.yaml
+          wsgidav --config /tmp/dav.yaml > /tmp/dav.log 2>&1 &
+          sleep 3
+          cargo test --release --all-features
+          MEMI_WEBDAV_URL=http://127.0.0.1:8800/Memi MEMI_WEBDAV_USER=ci MEMI_WEBDAV_PASSWORD=ci-pass \
+            cargo test --release --all-features --test two_devices webdav -- --ignored
       - name: Tests
         working-directory: desktop
         run: cargo test --release

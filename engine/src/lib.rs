@@ -10,9 +10,15 @@ pub mod memi;
 pub mod sync;
 #[cfg(feature = "native-drive")]
 pub mod native_drive;
+#[cfg(feature = "native-drive")]
+pub mod webdav;
+#[cfg(feature = "native-drive")]
+pub mod folder_drive;
+#[cfg(feature = "native-drive")]
+pub mod any_drive;
 #[cfg(feature = "sqlite")]
 pub mod sqlite;
 
 pub use data::Data;
-pub use memi::{Asking, Imported, Join, Memi, PhotoChange, Platform, Problem, SyncSettings, SyncStatus};
+pub use memi::{Asking, Imported, Join, Memi, PhotoChange, Platform, Problem, Provider, SyncSettings, SyncStatus};
 pub use memi_core as core;
