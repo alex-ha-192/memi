@@ -9,6 +9,8 @@ only syncing needs the network.
 - Everything else from this site: the cached copy first. Trunk gives these hashed names, so a
   cached copy is never stale.
 - Other sites (Google sign-in and Drive) are left alone.
+- Installing fetches every file from the site itself (cache: "reload"), never from the browser's
+  own cache, so a stale copy there can't end up in the worker's.
 """
 import hashlib
 import json
@@ -53,7 +55,7 @@ const CACHE = "memi-{version}";
 const FILES = {json.dumps(urls, indent=0)};
 
 self.addEventListener("install", (e) => {{
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES.map((u) => new Request(u, {{ cache: "reload" }})))).then(() => self.skipWaiting()));
 }});
 
 self.addEventListener("activate", (e) => {{

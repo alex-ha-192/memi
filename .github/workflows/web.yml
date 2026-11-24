@@ -64,6 +64,9 @@ jobs:
         run: |
           if [ -z "$MEMI_WEB_CLIENT_ID" ]; then echo "::warning::No MEMI_WEB_CLIENT_ID variable, so Sync is off in this build. See docs/RELEASING.md."; fi
           trunk build --release
+          # Our own script (src/glue.js) gets a name that changes with it, as Trunk's files have:
+          # browsers keep .js files for a year. (Older versions, built to roll back, lack this.)
+          if [ -f scripts/hash_snippets.py ]; then python3 scripts/hash_snippets.py dist; fi
           # The site's security policy allows no inline scripts, so Trunk's start-up script
           # moves to its own file.
           python3 scripts/externalise_boot.py dist
