@@ -37,7 +37,13 @@ if len(scripts) != 1:
 script = scripts[0]
 text = script.read_text()
 
-for folder in sorted(p for p in snippets.iterdir() if p.is_dir()):
+imported = set(re.findall(r"""\bfrom\s*['"]\.?/snippets/([^/'"]+)/""", text))
+if not imported:
+    sys.exit(f"{script.name} imports no snippets")
+for name in sorted(imported - {p.name for p in snippets.iterdir()}):
+    sys.exit(f"{script.name} imports snippets/{name}, which isn't in the build")
+# wasm-bindgen can leave folders here that nothing imports; only the imported ones matter.
+for folder in sorted(p for p in snippets.iterdir() if p.is_dir() and p.name in imported):
     digest = hashlib.sha256()
     for f in sorted(q for q in folder.rglob("*") if q.is_file()):
         digest.update(f.relative_to(folder).as_posix().encode())
@@ -47,8 +53,6 @@ for folder in sorted(p for p in snippets.iterdir() if p.is_dir()):
     # Only the import statements change. The same path also appears as the keys of the imports
     # handed to the WebAssembly, which names its imports by the original path.
     text, n = re.subn(rf"""(\bfrom\s*['"]\.?/){re.escape(old_ref)}""", lambda m: m.group(1) + new_ref, text)
-    if n == 0:
-        sys.exit(f"{script.name} doesn't import from {old_ref}")
     index = index.replace(old_ref, new_ref)
     shutil.move(folder, snippets / new)
 
@@ -65,4 +69,4 @@ if old_integrity:
 # The wasm keeps its name (its contents are unchanged); Trunk's start-up code names it directly.
 
 index_path.write_text(index)
-print(f"{script.name} -> {new_name}; snippets: {[p.name for p in snippets.iterdir()]}")
+print(f"{script.name} -> {new_name}; snippets: {sorted(p.name for p in snippets.iterdir())}")
