@@ -63,7 +63,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
       # memi-engine (Rust) for each Android ABI, built by Gradle with cargo-ndk.
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -134,7 +134,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
       # memi-engine (Rust) for each Android ABI, built by Gradle with cargo-ndk.
       - uses: dtolnay/rust-toolchain@stable
         with:
