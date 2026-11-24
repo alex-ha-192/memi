@@ -43,7 +43,7 @@ jobs:
       MEMI_WEB_CLIENT_ID: ${{ vars.MEMI_WEB_CLIENT_ID || secrets.MEMI_WEB_CLIENT_ID }}
       HAS_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref || github.sha }}
       - uses: dtolnay/rust-toolchain@stable
